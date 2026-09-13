@@ -32,7 +32,10 @@ class SpeciesRecord(BaseModel):
     common_name: str
     scientific_name: str
     taxonomy_class: TaxonomyClass
+    category: Optional[str] = "Mammals"
+    breed: Optional[str] = "Wild Species"
     habitat: str = "Various ecosystems"
+    region: str = "Global Distribution"
     rarity: RarityTier = RarityTier.COMMON
     danger_level: DangerLevel = DangerLevel.HARMLESS
     fun_fact: str = "Fascinating creature of nature."
@@ -50,10 +53,13 @@ class UserScan(BaseModel):
     species_common_name: str
     species_scientific_name: str
     taxonomy_class: TaxonomyClass
+    category: Optional[str] = "Mammals"
+    breed: Optional[str] = "Wild Species"
     confidence_score: float = Field(..., ge=0.0, le=1.0)
     rarity: RarityTier = RarityTier.COMMON
     fun_fact: str = ""
     habitat: str = ""
+    region: str = "Global Distribution"
     danger_level: DangerLevel = DangerLevel.HARMLESS
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -78,9 +84,12 @@ class IdentifyResponse(BaseModel):
     common_name: str = ""
     scientific_name: str = ""
     taxonomy_class: TaxonomyClass = TaxonomyClass.OTHER
+    category: Optional[str] = "Mammals"
+    breed: Optional[str] = "Wild Species"
     confidence_score: float = 0.0
     rarity: RarityTier = RarityTier.COMMON
     habitat: str = ""
+    region: str = "Global Distribution"
     fun_fact: str = ""
     danger_level: DangerLevel = DangerLevel.HARMLESS
     top_candidates: List[PredictionCandidate] = []

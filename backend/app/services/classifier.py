@@ -54,12 +54,13 @@ class SpeciesClassifier:
                 logger.error("Failed to load ONNX MobileNetV2 model: %s", str(e))
                 self._session = None
 
-    def classify(self, tensor: np.ndarray) -> Dict[str, Any]:
+    def classify(self, tensor: np.ndarray, full_tensor: Optional[np.ndarray] = None) -> Dict[str, Any]:
         """
         Executes inference on preprocessed tensor and maps to biological taxonomy.
 
         Args:
-            tensor: Preprocessed float32 numpy array with shape (1, 3, 224, 224) or (1, 224, 224, 3).
+            tensor: Preprocessed subject crop float32 numpy array with shape (1, 3, 224, 224).
+            full_tensor: Optional full frame float32 numpy array with shape (1, 3, 224, 224).
 
         Returns:
             Dict containing is_wildlife, success, common_name, taxonomy_class, confidence, candidates, and metadata.
@@ -89,44 +90,55 @@ class SpeciesClassifier:
                 tensor = np.transpose(tensor, (0, 3, 1, 2))
             tensor = tensor.astype(np.float32)
 
-            # Run forward inference
-            raw_output = self._session.run([self._output_name], {self._input_name: tensor})[0][0]
+            # Forward inference on cropped animal
+            raw_sub = self._session.run([self._output_name], {self._input_name: tensor})[0][0]
+            exp_sub = np.exp(raw_sub - np.max(raw_sub))
+            probs_sub = exp_sub / np.sum(exp_sub)
 
-            # Numerically stable Softmax probabilities
-            exp_scores = np.exp(raw_output - np.max(raw_output))
-            probs = exp_scores / np.sum(exp_scores)
+            if full_tensor is not None:
+                if full_tensor.ndim == 4 and full_tensor.shape[-1] == 3:
+                    full_tensor = np.transpose(full_tensor, (0, 3, 1, 2))
+                raw_full = self._session.run([self._output_name], {self._input_name: full_tensor.astype(np.float32)})[0][0]
+                exp_full = np.exp(raw_full - np.max(raw_full))
+                probs_full = exp_full / np.sum(exp_full)
+                # 65% subject crop + 35% full scene
+                probs = 0.65 * probs_sub + 0.35 * probs_full
+            else:
+                probs = probs_sub
 
             # Sort top 10 predictions
             top_indices = np.argsort(probs)[::-1][:10]
             top_idx = int(top_indices[0])
             top_prob = float(probs[top_idx])
+            top_label = self._labels[top_idx]
 
-            # Calculate total probability mass for wildlife (classes 0-397) vs man-made/human/room objects (classes 398-999)
+            # Inanimate object probability vs animal probability
             animal_prob_sum = float(np.sum(probs[:398]))
             object_prob_sum = float(np.sum(probs[398:]))
 
-            chosen_idx = None
-            chosen_prob = 0.0
+            # 1. STRICT REJECTION OF OBJECTS, ROOMS, LAPTOPS, CLOTHING, FURNITURE
+            # If the top prediction is an object (class >= 398), it is definitively NOT wildlife!
+            if top_idx >= 398:
+                logger.info("Non-wildlife detected: class %d (%s), prob: %.3f, object_sum: %.3f", top_idx, top_label, top_prob, object_prob_sum)
+                clean_name = top_label.replace("_", " ").title()
+                return {
+                    "is_wildlife": False,
+                    "success": False,
+                    "message": f"No wildlife detected. (Object identified: {clean_name}). Center a wild animal, bird, insect, or reptile in the viewfinder.",
+                    "common_name": "No Wildlife",
+                    "scientific_name": f"Inanimate Object ({clean_name})",
+                    "taxonomy_class": TaxonomyClass.OTHER,
+                    "confidence_score": 0.0,
+                    "rarity": RarityTier.COMMON,
+                    "habitat": "Non-natural environment",
+                    "fun_fact": "Gotcha! Lens only registers living wildlife creatures, birds, insects, and reptiles.",
+                    "danger_level": DangerLevel.HARMLESS,
+                    "top_candidates": [],
+                }
 
-            # Reject scenes dominated by human clothing, room furniture, or walls (non-wildlife)
-            # An animal is only accepted if it has real confidence (>= 0.22) and isn't drowned out by room objects
-            if top_idx < 398 and top_prob >= 0.22 and animal_prob_sum >= 0.30:
-                chosen_idx = top_idx
-                chosen_prob = top_prob
-            elif object_prob_sum > 0.65:
-                # Scene is predominantly a human, clothes, furniture, or indoor setting
-                chosen_idx = None
-            else:
-                # If top class was ambient noise, check if a legitimate animal in top 5 has strong confidence
-                for idx in top_indices[:5]:
-                    if int(idx) < 398 and float(probs[idx]) >= 0.28:
-                        chosen_idx = int(idx)
-                        chosen_prob = float(probs[idx])
-                        break
-
-            # If no genuine wildlife detected with adequate confidence, reject clearly!
-            if chosen_idx is None:
-                logger.info("Non-wildlife detected (top index %d: %s, prob %.3f)", top_idx, self._labels[top_idx], top_prob)
+            # 2. Reject scenes where inanimate objects dominate or confidence is insufficient
+            if object_prob_sum > 0.58 or top_prob < 0.20 or animal_prob_sum < 0.30:
+                logger.info("Non-wildlife or low confidence scene: top %s (%.3f), object_prob_sum: %.3f", top_label, top_prob, object_prob_sum)
                 return {
                     "is_wildlife": False,
                     "success": False,
@@ -141,6 +153,9 @@ class SpeciesClassifier:
                     "danger_level": DangerLevel.HARMLESS,
                     "top_candidates": [],
                 }
+
+            chosen_idx = top_idx
+            chosen_prob = top_prob
 
             # Map animal index to taxonomic data and rich biological metadata
             raw_label = self._labels[chosen_idx]
@@ -175,9 +190,12 @@ class SpeciesClassifier:
                 "common_name": meta["common_name"],
                 "scientific_name": meta["scientific_name"],
                 "taxonomy_class": meta["taxonomy_class"],
+                "category": meta.get("category", "Mammals"),
+                "breed": meta.get("breed", "Wild Species"),
                 "confidence_score": confident_score,
                 "rarity": meta["rarity"],
                 "habitat": meta["habitat"],
+                "region": meta.get("region", "Global Terrestrial Biomes"),
                 "fun_fact": meta["fun_fact"],
                 "danger_level": meta["danger_level"],
                 "top_candidates": candidates[: settings.TOP_K_PREDICTIONS],

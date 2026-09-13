@@ -71,8 +71,12 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheetWrapper} onPress={(e) => e.stopPropagation()}>
+      <View style={styles.backdrop}>
+        {/* Background dismiss area */}
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+
+        {/* Modal Sheet Container - View allows ScrollView to receive all gestures */}
+        <View style={styles.sheetWrapper}>
           <View style={styles.modalSheet}>
             {/* FIXED TOP HEADER: Drag Indicator & Circular Close Button (Always visible on screen!) */}
             <View style={styles.modalTopBar}>
@@ -127,10 +131,17 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Names & Category Header */}
+              {/* Names, Category & Breed Header */}
               <View style={styles.headerSection}>
-                <View style={styles.categoryBadge}>
-                  <Text style={styles.categoryBadgeText}>{specimen.category}</Text>
+                <View style={styles.badgeRow}>
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryBadgeText}>{specimen.category}</Text>
+                  </View>
+                  {specimen.breed ? (
+                    <View style={styles.breedBadge}>
+                      <Text style={styles.breedBadgeText}>{specimen.breed}</Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 <Text style={styles.commonName}>{specimen.common_name}</Text>
@@ -219,8 +230,8 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
               </View>
             </ScrollView>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 };
@@ -353,6 +364,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     alignItems: 'flex-start',
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    marginBottom: 6,
+  },
   categoryBadge: {
     backgroundColor: '#F3F4F6',
     paddingVertical: 3.5,
@@ -360,12 +378,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    marginBottom: 5,
   },
   categoryBadgeText: {
     fontSize: 11,
     fontWeight: '700',
     color: COLORS.textPrimary,
+  },
+  breedBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingVertical: 3.5,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  breedBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#4338CA',
   },
   commonName: {
     fontSize: 22,

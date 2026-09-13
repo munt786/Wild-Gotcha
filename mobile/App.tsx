@@ -112,6 +112,10 @@ export default function App() {
         mappedCat = 'Arachnids';
       } else if (
         rawClass.includes('bird') ||
+        rawName.includes('hen') ||
+        rawName.includes('chicken') ||
+        rawName.includes('rooster') ||
+        rawName.includes('cock') ||
         rawName.includes('eagle') ||
         rawName.includes('owl') ||
         rawName.includes('hawk') ||
@@ -204,17 +208,22 @@ export default function App() {
       const catalogId = '#' + String(specimens.length + 1).padStart(3, '0');
 
       // 6. Automatically Record to Catches Inventory
+      const authenticRegion = res.region || res.habitat || 'Global Distribution';
+      const finalCategory: TaxonomicCategory = (res.category as TaxonomicCategory) || mappedCat;
+      const finalBreed = res.breed || 'Wild Species';
+
       const newCatch: CatchRecord = {
         catch_id: 'catch_' + Date.now(),
         specimen_id: specimenId,
         catalog_id: catalogId,
         common_name: res.common_name,
         scientific_name: res.scientific_name,
-        category: mappedCat,
+        category: finalCategory,
+        breed: finalBreed,
         rarity: mappedRarity,
         image_url: imageUri,
         biome: res.habitat || 'Temperate Wilderness',
-        region: 'Global Habitat',
+        region: authenticRegion,
         danger_level: mappedDanger,
         caught_at: fullTimestamp,
         lore: res.fun_fact || 'Remarkable wildlife creature cataloged in Gotcha! Lens.',
@@ -235,6 +244,9 @@ export default function App() {
           ...existing,
           captured_count: existing.captured_count + 1,
           image_url: imageUri, // update with newest capture photo
+          region: authenticRegion,
+          breed: finalBreed,
+          category: finalCategory,
         };
         setSpecimens((prev) => {
           const next = [...prev];
@@ -247,12 +259,13 @@ export default function App() {
           catalog_id: catalogId,
           common_name: res.common_name,
           scientific_name: res.scientific_name,
-          category: mappedCat,
+          category: finalCategory,
+          breed: finalBreed,
           rarity: mappedRarity,
           image_url: imageUri,
           lore: res.fun_fact || 'Remarkable wildlife creature cataloged in Gotcha! Lens.',
           biome: res.habitat || 'Temperate Wilderness',
-          region: 'Global Habitat',
+          region: authenticRegion,
           date_spotted: dateOnly,
           danger_level: mappedDanger,
           captured_count: 1,

@@ -30,6 +30,7 @@ export interface Specimen {
   common_name: string;
   scientific_name: string;
   category: TaxonomicCategory;
+  breed?: string;
   rarity: RarityLevel;
   image_url: string;
   lore: string;
@@ -48,6 +49,7 @@ export interface CatchRecord {
   common_name: string;
   scientific_name: string;
   category: TaxonomicCategory;
+  breed?: string;
   rarity: RarityLevel;
   image_url: string;
   biome: string;
@@ -87,9 +89,12 @@ export interface IdentifyResponse {
   common_name: string;
   scientific_name: string;
   taxonomy_class: string;
+  category?: string;
+  breed?: string;
   confidence_score: number;
   rarity: string;
   habitat: string;
+  region?: string;
   fun_fact: string;
   danger_level: string;
   top_candidates: PredictionCandidate[];

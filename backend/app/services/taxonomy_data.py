@@ -1,5 +1,22 @@
+import json
+import os
+import logging
 from typing import Dict, Any, Optional
 from app.models.schemas import TaxonomyClass, RarityTier, DangerLevel
+
+logger = logging.getLogger(__name__)
+
+# Load comprehensive 398-species wildlife encyclopedia dataset
+_ENCYCLOPEDIA_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "wildlife_encyclopedia.json")
+WILDLIFE_ENCYCLOPEDIA: Dict[str, Dict[str, Any]] = {}
+
+if os.path.exists(_ENCYCLOPEDIA_PATH):
+    try:
+        with open(_ENCYCLOPEDIA_PATH, "r", encoding="utf-8") as _f:
+            WILDLIFE_ENCYCLOPEDIA = json.load(_f)
+        logger.info("Loaded %d authoritative wildlife encyclopedia profiles.", len(WILDLIFE_ENCYCLOPEDIA))
+    except Exception as _e:
+        logger.warning("Could not load wildlife encyclopedia: %s", str(_e))
 
 # Curated taxonomic mapping for ImageNet synsets and species keywords
 # Maps ImageNet synset labels to accurate biological classification and Gotcha metadata.
@@ -479,6 +496,28 @@ SPECIES_TAXONOMY_MAP: Dict[str, Dict[str, Any]] = {
         "fun_fact": "A dog's nose print is completely unique, just like human fingerprints, and can be used for biometric identification.",
         "diet": "Omnivorous",
     },
+    "hen": {
+        "common_name": "Hen (Domestic Fowl)",
+        "scientific_name": "Gallus gallus domesticus",
+        "taxonomy_class": TaxonomyClass.OTHER,
+        "rarity": RarityTier.COMMON,
+        "danger_level": DangerLevel.HARMLESS,
+        "habitat": "Pastures, farmsteads, and rural grasslands",
+        "region": "Southeast Asia (Orig.) • Worldwide Domestic",
+        "fun_fact": "Chickens can recognize and remember over 100 distinct faces, communicate with 30+ distinct calls, and dream in REM sleep.",
+        "diet": "Omnivorous (seeds, grains, insects, worms)",
+    },
+    "cock": {
+        "common_name": "Rooster (Domestic Cock)",
+        "scientific_name": "Gallus gallus domesticus",
+        "taxonomy_class": TaxonomyClass.OTHER,
+        "rarity": RarityTier.COMMON,
+        "danger_level": DangerLevel.HARMLESS,
+        "habitat": "Pastures, farmsteads, and rural grasslands",
+        "region": "Southeast Asia (Orig.) • Worldwide Domestic",
+        "fun_fact": "Roosters crow to announce territory and guide their flock using an internal circadian body clock.",
+        "diet": "Omnivorous (seeds, grains, insects, worms)",
+    },
 }
 
 # Broader keyword lists to classify any ImageNet label into our 4 taxonomy buckets
@@ -509,17 +548,211 @@ TAXONOMY_KEYWORDS = {
 }
 
 
+def resolve_biogeographical_region(clean_label: str, tax_class: TaxonomyClass) -> str:
+    """
+    Determines the authentic native biogeographical realm or historical geographic origin of the creature.
+    """
+    lbl = clean_label.lower()
+
+    # Australasia & Oceania
+    if any(k in lbl for k in [
+        "koala", "kangaroo", "wallaby", "wombat", "platypus", "dingo", "tasmanian",
+        "emu", "cassowary", "kookaburra", "echidna", "sugar glider", "quokka", "taipan",
+        "bearded dragon", "blue-tongued", "kiwi"
+    ]):
+        return "Australasia (Oceania)"
+
+    # Arctic & Subarctic Realm
+    if any(k in lbl for k in [
+        "samoyed", "husky", "siberian", "malamute", "polar bear", "arctic fox",
+        "arctic hare", "walrus", "reindeer", "caribou", "beluga", "narwhal", "ptarmigan"
+    ]):
+        return "Siberia & Arctic Tundra"
+
+    # Madagascar Endemics
+    if any(k in lbl for k in ["lemur", "chameleon", "fossa", "aye-aye", "indri", "tenrec"]):
+        return "Madagascar & Sub-Saharan Africa"
+
+    # Sub-Saharan Africa
+    if any(k in lbl for k in [
+        "lion", "cheetah", "leopard", "zebra", "giraffe", "hippopotamus", "hippo",
+        "african elephant", "black rhino", "white rhino", "hyena", "meerkat", "warthog",
+        "chimp", "chimpanzee", "gorilla", "baboon", "ostrich", "aardvark", "mamba",
+        "nile crocodile", "gnu", "wildebeest", "impala", "gazelle", "okapi"
+    ]):
+        return "Sub-Saharan Africa"
+
+    # South & Southeast Asia (Indomalayan Realm)
+    if any(k in lbl for k in [
+        "bengal tiger", "tiger", "asian elephant", "king cobra", "peacock", "peafowl",
+        "pangolin", "gibbon", "orangutan", "water buffalo", "clouded leopard", "snow leopard",
+        "langur", "macaque", "cobra", "python"
+    ]):
+        return "South & Southeast Asia"
+
+    # Indonesian Island Endemics
+    if any(k in lbl for k in ["komodo", "anoa", "babirusa"]):
+        return "Indonesian Lesser Sunda Islands"
+
+    # Central & South America (Neotropics / Amazon Basin & Andes)
+    if any(k in lbl for k in [
+        "jaguar", "toucan", "macaw", "sloth", "capybara", "poison dart", "anaconda",
+        "boa constrictor", "ocelot", "armadillo", "anteater", "tapir", "iguana", "piranha",
+        "llama", "alpaca", "vicuna", "chinchilla", "coati", "marmoset", "tamarin"
+    ]):
+        return "South & Central America (Amazon)"
+
+    # North America (Nearctic Realm)
+    if any(k in lbl for k in [
+        "bald eagle", "bison", "grizzly", "black bear", "cougar", "mountain lion",
+        "raccoon", "skunk", "opossum", "beaver", "muskrat", "moose", "elk", "coyote",
+        "rattlesnake", "alligator", "monarch", "swallowtail", "blue jay", "cardinal",
+        "roadrunner", "pronghorn", "prairie dog", "gila monster"
+    ]):
+        return "North America"
+
+    # Antarctica & Southern Oceans
+    if any(k in lbl for k in ["penguin", "emperor penguin", "adelie", "leopard seal", "albatross"]):
+        return "Antarctica & Southern Hemisphere"
+
+    # Poultry & Fowl (Origin & Domestic Distribution)
+    if any(k in lbl for k in ["hen", "rooster", "chicken", "cock"]):
+        return "Southeast Asia (Orig.) • Worldwide Domestic"
+
+    # Canine Breeds by Historical Origin
+    if any(k in lbl for k in ["german shepherd", "rottweiler", "boxer", "doberman", "dachshund", "schnauzer"]):
+        return "Central Europe • Worldwide Domestic"
+    if any(k in lbl for k in ["retriever", "labrador", "bulldog", "beagle", "terrier", "spaniel", "collie", "setter", "hound", "mastiff"]):
+        return "British Isles • Worldwide Domestic"
+    if any(k in lbl for k in ["chihuahua"]):
+        return "Mesoamerica (Mexico) • Worldwide Domestic"
+    if any(k in lbl for k in ["shih tzu", "pug", "pekingese", "chow", "akita", "shiba"]):
+        return "East Asia (China/Japan) • Worldwide Domestic"
+    if any(k in lbl for k in ["dog", "canine", "puppy"]):
+        return "Eurasia (Orig.) • Worldwide Domestic"
+
+    # Feline Breeds by Historical Origin
+    if any(k in lbl for k in ["persian cat"]):
+        return "Middle East (Iran) • Worldwide Domestic"
+    if any(k in lbl for k in ["siamese cat"]):
+        return "Southeast Asia (Thailand) • Worldwide Domestic"
+    if any(k in lbl for k in ["cat", "feline", "kitten"]):
+        return "Near East (Orig.) • Worldwide Domestic"
+
+    # Livestock & Farmed Animals
+    if any(k in lbl for k in ["cow", "bull", "ox", "cattle", "calf"]):
+        return "Fertile Crescent (Orig.) • Worldwide Domestic"
+    if any(k in lbl for k in ["horse", "mare", "stallion", "colt", "pony"]):
+        return "Eurasian Steppes (Orig.) • Worldwide Domestic"
+    if any(k in lbl for k in ["sheep", "ram", "lamb", "goat"]):
+        return "Southwest Asia (Orig.) • Worldwide Domestic"
+    if any(k in lbl for k in ["pig", "hog", "swine"]):
+        return "Eurasia (Orig.) • Worldwide Domestic"
+
+    # General biological class geographic defaults
+    if tax_class == TaxonomyClass.ARACHNIDA:
+        return "Tropical & Temperate Worldwide"
+    if tax_class == TaxonomyClass.INSECTA:
+        return "Global Terrestrial Ecosystems"
+    if tax_class == TaxonomyClass.REPTILIA:
+        return "Tropical & Subtropical Continents"
+
+    return "Global Terrestrial & Marine Biomes"
+
+
 def resolve_taxonomy_and_metadata(raw_label: str) -> Dict[str, Any]:
     """
     Translates an ImageNet label or model output into our target 4 taxonomy classes:
-    Mammalia, Insecta, Reptilia, Arachnida, with detailed biological metadata.
+    Mammalia, Insecta, Reptilia, Arachnida, with detailed biological and regional metadata.
     """
     clean_label = raw_label.lower().strip().replace("_", " ")
 
-    # 1. Direct dictionary match
+    # 1. Authoritative Wildlife Encyclopedia Match (covers all 398 animal classes)
+    if clean_label in WILDLIFE_ENCYCLOPEDIA:
+        entry = dict(WILDLIFE_ENCYCLOPEDIA[clean_label])
+        # Parse taxonomy_class enum
+        t_str = str(entry.get("taxonomy_class", "Other Wildlife"))
+        if "Mammal" in t_str:
+            entry["taxonomy_class"] = TaxonomyClass.MAMMALIA
+        elif "Insect" in t_str:
+            entry["taxonomy_class"] = TaxonomyClass.INSECTA
+        elif "Reptil" in t_str:
+            entry["taxonomy_class"] = TaxonomyClass.REPTILIA
+        elif "Arachnid" in t_str:
+            entry["taxonomy_class"] = TaxonomyClass.ARACHNIDA
+        else:
+            entry["taxonomy_class"] = TaxonomyClass.OTHER
+
+        # Parse rarity and danger
+        r_str = str(entry.get("rarity", "Common")).lower()
+        if "legend" in r_str:
+            entry["rarity"] = RarityTier.LEGENDARY
+        elif "epic" in r_str:
+            entry["rarity"] = RarityTier.EPIC
+        elif "rare" in r_str:
+            entry["rarity"] = RarityTier.RARE
+        elif "uncommon" in r_str:
+            entry["rarity"] = RarityTier.UNCOMMON
+        else:
+            entry["rarity"] = RarityTier.COMMON
+
+        d_str = str(entry.get("danger_level", "Harmless")).lower()
+        if "venom" in d_str or "danger" in d_str:
+            entry["danger_level"] = DangerLevel.VENOMOUS_DANGEROUS
+        elif "predator" in d_str:
+            entry["danger_level"] = DangerLevel.PREDATORY
+        elif "mild" in d_str:
+            entry["danger_level"] = DangerLevel.MILD
+        else:
+            entry["danger_level"] = DangerLevel.HARMLESS
+
+        # Parse category and breed
+        cat = entry.get("category")
+        if not cat:
+            if entry["taxonomy_class"] == TaxonomyClass.MAMMALIA:
+                cat = "Mammals"
+            elif entry["taxonomy_class"] == TaxonomyClass.INSECTA:
+                cat = "Insects"
+            elif entry["taxonomy_class"] == TaxonomyClass.REPTILIA:
+                cat = "Reptiles"
+            elif entry["taxonomy_class"] == TaxonomyClass.ARACHNIDA:
+                cat = "Arachnids"
+            else:
+                c_name = entry.get("common_name", "").lower()
+                if any(w in c_name for w in ["hen", "cock", "chicken", "bird", "eagle", "owl", "hawk", "duck", "goose", "finch", "sparrow", "robin", "magpie", "vulture", "ostrich", "penguin", "falcon", "peacock", "parrot", "swan", "bunting"]):
+                    cat = "Birds"
+                elif any(w in c_name for w in ["frog", "toad", "salamander", "newt", "axolotl"]):
+                    cat = "Amphibians"
+                elif any(w in c_name for w in ["shark", "ray", "fish", "eel", "salmon", "trout", "carp", "goldfish"]):
+                    cat = "Fish"
+                else:
+                    cat = "Other Wildlife"
+        entry["category"] = cat
+
+        if not entry.get("breed"):
+            c_name = entry.get("common_name", "").lower()
+            if any(w in c_name for w in ["retriever", "shepherd", "husky", "terrier", "spaniel", "hound", "corgi", "poodle", "boxer", "mastiff", "bulldog", "samoyed", "akita"]):
+                entry["breed"] = "Purebred Canine"
+            elif any(w in c_name for w in ["cat", "persian", "siamese", "bengal", "ragdoll", "shorthair"]):
+                entry["breed"] = "Domestic Feline Breed"
+            elif any(w in c_name for w in ["cattle", "cow", "bull", "ox", "angus", "holstein", "jersey"]):
+                entry["breed"] = "Livestock Cattle Breed"
+            elif any(w in c_name for w in ["horse", "pony", "thoroughbred", "arabian", "mustang"]):
+                entry["breed"] = "Equine Breed"
+            elif any(w in c_name for w in ["hen", "rooster", "chicken"]):
+                entry["breed"] = "Domestic Fowl Breed"
+            else:
+                entry["breed"] = "Wild Species"
+
+        return entry
+
+    # 2. Direct dictionary match in curated species map
     for key, data in SPECIES_TAXONOMY_MAP.items():
         if key in clean_label or clean_label in key:
-            return data
+            res = dict(data)
+            if "region" not in res:
+                res["region"] = resolve_biogeographical_region(clean_label, res.get("taxonomy_class", TaxonomyClass.OTHER))
+            return res
 
     # 2. Heuristic keyword classification
     detected_class = TaxonomyClass.OTHER
@@ -537,6 +770,8 @@ def resolve_taxonomy_and_metadata(raw_label: str) -> Dict[str, Any]:
         # Fallback to Mammalia if typical domestic animal or unknown vertebrate
         detected_class = TaxonomyClass.MAMMALIA
 
+    region = resolve_biogeographical_region(clean_label, detected_class)
+
     return {
         "common_name": title_common,
         "scientific_name": f"{title_common.replace(' ', '')} sp.",
@@ -544,6 +779,7 @@ def resolve_taxonomy_and_metadata(raw_label: str) -> Dict[str, Any]:
         "rarity": RarityTier.COMMON,
         "danger_level": DangerLevel.HARMLESS,
         "habitat": "Temperate wilderness and varied landscapes",
+        "region": region,
         "fun_fact": f"A remarkable member of the {detected_class.value} class registered in your WildGotcha Dex.",
         "diet": "Specialized diet",
     }

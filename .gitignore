@@ -23,6 +23,8 @@ wheels/
 venv/
 ENV/
 .env
+scratch/
+backend/scratch/
 
 # Node & Expo
 node_modules/
@@ -36,6 +38,8 @@ web-build/
 # Native builds
 android/
 ios/
+*.apk
+*.aab
 *.orig.*
 *.jks
 *.p8

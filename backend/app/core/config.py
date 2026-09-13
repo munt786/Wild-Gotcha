@@ -1,5 +1,5 @@
 import os
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     PORT: int = 8000
     HOST: str = "0.0.0.0"
+
+    # Google Gemini Vision API Settings (for Global Lakhs/Crores Species ID)
+    GEMINI_API_KEY: Optional[str] = None
 
     # MongoDB Atlas Settings
     MONGODB_URI: str = "mongodb://localhost:27017"

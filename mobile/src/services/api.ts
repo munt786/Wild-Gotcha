@@ -127,13 +127,28 @@ export class ApiService {
       return result;
     } catch (error: any) {
       console.warn('Identify API request failed:', error);
-      // If network fails (backend unreachable or aborted), provide graceful fallback
+      // If network fails (backend unreachable or aborted), return clear error so user is never misled
       if (
         error.name === 'AbortError' ||
         (error.message && (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')))
       ) {
-        console.warn('Backend unreachable, using offline demo mode:', error.message);
-        return ApiService.getMockDiscovery(imageUri);
+        return {
+          success: false,
+          is_wildlife: false,
+          message: `Cannot reach AI Backend at ${currentBaseUrl}. Ensure laptop has start_backend.bat running on the same Wi-Fi.`,
+          common_name: 'Server Unreachable',
+          scientific_name: 'Network Connection Required',
+          taxonomy_class: 'Other',
+          confidence_score: 0,
+          rarity: 'Common',
+          habitat: 'Local Network',
+          region: 'Local Network',
+          fun_fact: 'Make sure your phone and laptop are connected to the same Wi-Fi network.',
+          danger_level: 'Harmless',
+          scanned_at: new Date().toISOString(),
+          persisted: false,
+          top_candidates: [],
+        };
       }
       throw error;
     }

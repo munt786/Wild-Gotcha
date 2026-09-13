@@ -18,6 +18,7 @@ from app.models.schemas import (
 )
 from app.services.image_processor import image_processor
 from app.services.classifier import species_classifier
+from app.services.gemini_service import gemini_vision_classifier
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +91,20 @@ async def identify_species(
             detail="No image data provided. Send a multipart file or base64 image payload.",
         )
 
-    # 3. OpenCV Validation and Preprocessing
-    # Resizes to 224x224, converts BGR to RGB, normalizes to [-1, 1], generates thumbnail
-    tensor, thumbnail_b64 = image_processor.validate_and_preprocess(image_bytes)
+    # 3. OpenCV Validation and Animal Subject Localization & Preprocessing
+    subject_tensor, full_tensor, thumbnail_b64 = image_processor.validate_and_preprocess(image_bytes)
 
-    # 4. MobileNetV2 Wildlife Inference
-    classification = species_classifier.classify(tensor)
+    # 4. Global AI Classification Pipeline:
+    # If Gemini Vision is configured, use it for universal global identification (lakhs of species & breeds)
+    classification = None
+    if gemini_vision_classifier.is_available():
+        logger.info("Running Gemini 1.5 Flash Vision classification across global species...")
+        classification = await gemini_vision_classifier.classify(image_bytes)
+
+    # Seamless fallback to local MobileNetV2 + 398-species encyclopedia if Gemini is offline/unconfigured
+    if not classification:
+        logger.info("Using local MobileNetV2 + authentic wildlife encyclopedia classification...")
+        classification = species_classifier.classify(subject_tensor, full_tensor)
 
     if not classification.get("is_wildlife", True):
         return IdentifyResponse(
@@ -125,10 +134,13 @@ async def identify_species(
         "species_common_name": classification["common_name"],
         "species_scientific_name": classification["scientific_name"],
         "taxonomy_class": classification["taxonomy_class"],
+        "category": classification.get("category", "Mammals"),
+        "breed": classification.get("breed", "Wild Species"),
         "confidence_score": classification["confidence_score"],
         "rarity": classification["rarity"],
         "fun_fact": classification["fun_fact"],
         "habitat": classification["habitat"],
+        "region": classification.get("region", "Global Distribution"),
         "danger_level": classification["danger_level"],
         "latitude": latitude,
         "longitude": longitude,
@@ -147,7 +159,10 @@ async def identify_species(
                 "common_name": classification["common_name"],
                 "scientific_name": classification["scientific_name"],
                 "taxonomy_class": classification["taxonomy_class"],
+                "category": classification.get("category", "Mammals"),
+                "breed": classification.get("breed", "Wild Species"),
                 "habitat": classification["habitat"],
+                "region": classification.get("region", "Global Distribution"),
                 "rarity": classification["rarity"],
                 "danger_level": classification["danger_level"],
                 "fun_fact": classification["fun_fact"],
@@ -175,9 +190,12 @@ async def identify_species(
         common_name=classification["common_name"],
         scientific_name=classification["scientific_name"],
         taxonomy_class=classification["taxonomy_class"],
+        category=classification.get("category", "Mammals"),
+        breed=classification.get("breed", "Wild Species"),
         confidence_score=classification["confidence_score"],
         rarity=classification["rarity"],
         habitat=classification["habitat"],
+        region=classification.get("region", "Global Distribution"),
         fun_fact=classification["fun_fact"],
         danger_level=classification["danger_level"],
         top_candidates=classification.get("top_candidates", []),

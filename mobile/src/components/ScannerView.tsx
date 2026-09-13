@@ -90,10 +90,8 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
     // Dynamic Zoom Ladder Builder based on detected device hardware
     const buildZoomLadder = (max: number): number[] => {
       if (max >= 100) return [1, 2, 5, 10, 30, 100];
-      if (max >= 50) return [1, 2, 5, 10, 25, 50];
-      if (max >= 30) return [1, 2, 5, 10, 20, 30];
-      if (max >= 15) return [1, 2, 3, 5, 10, 15];
-      if (max >= 10) return [1, 2, 3, 5, 10];
+      if (max >= 30) return [1, 2, 5, 10, 30];
+      if (max >= 10) return [1, 2, 5, 10];
       if (max >= 5) return [1, 2, 3, 5];
       return [1, 2, 3];
     };
@@ -193,8 +191,25 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
     const applyZoom = (multiplier: number) => {
       setSelectedZoom(multiplier);
 
-      // 1. Normalize zoom between 0.0 and 1.0 for expo-camera CameraView
-      const normalized = Math.min(1.0, Math.max(0.0, (multiplier - 1) / (maxHardwareZoom - 1)));
+      // 1. Perceptual non-linear mapping for native camera sensor (0.0 = 1x optical up to 1.0 = device max)
+      // Provides dramatic, distinct magnification steps on any phone (10x, 30x, or 100x Space Zoom devices)
+      let normalized = 0.0;
+      if (multiplier <= 1) {
+        normalized = 0.0;
+      } else if (multiplier === 2) {
+        normalized = 0.15;
+      } else if (multiplier === 5) {
+        normalized = 0.35;
+      } else if (multiplier === 10) {
+        normalized = 0.60;
+      } else if (multiplier === 30) {
+        normalized = 0.85;
+      } else if (multiplier >= 100) {
+        normalized = 1.00;
+      } else {
+        // Smooth logarithmic interpolation
+        normalized = Math.min(1.0, Math.max(0.0, Math.log10(multiplier) / 2.0));
+      }
       setZoomLevel(normalized);
 
       // 2. Direct hardware zoom constraint or viewport scale on Web
@@ -354,7 +369,7 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
         </View>
 
         {/* 2. CENTER VIEWFINDER AREA (Isolated in preview zone - ZERO overlap with zoom pills!) */}
-        <View style={styles.viewfinderArea}>
+        <View style={styles.viewfinderArea} pointerEvents="none">
           <View style={styles.whiteRoundedFrame} />
         </View>
 
