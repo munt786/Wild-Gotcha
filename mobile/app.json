@@ -28,10 +28,11 @@
       "package": "com.wildgotcha.app",
       "versionCode": 1,
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "INTERNET"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -50,8 +51,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "wildgotcha-species-id"
+        "projectId": "3ea456f0-5d38-4938-b713-78ab28f25c4c"
       }
-    }
+    },
+    "owner": "mohammad_muntazir_ahmad"
   }
 }
