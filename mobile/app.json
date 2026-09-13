@@ -47,7 +47,8 @@
         {
           "photosPermission": "WildGotcha requires access to your photos to identify wildlife creatures from your album."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "eas": {
