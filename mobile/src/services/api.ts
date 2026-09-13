@@ -70,13 +70,27 @@ export class ApiService {
     imageUri: string,
     options: IdentifyOptions = {}
   ): Promise<IdentifyResponse> {
+    // 1. Standalone Direct Cloud AI: Instant scan without needing any local server!
+    // When the APK is built with EAS, the key is already securely embedded.
+    if (GeminiDirectService.isAvailable()) {
+      try {
+        console.log('Classifying directly via Google Gemini Flash Vision AI (Zero local server needed)...');
+        const directResult = await GeminiDirectService.identifyDirectly(imageUri);
+        if (directResult) {
+          return directResult;
+        }
+      } catch (directErr) {
+        console.warn('Direct Gemini Vision encountered error, trying backend:', directErr);
+      }
+    }
+
     const filename = imageUri.split('/').pop() || 'capture.jpg';
     const match = /\.(\w+)$/.exec(filename);
     const type = match ? `image/${match[1].toLowerCase()}` : `image/jpeg`;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout for model inference
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for local backend
 
       let response: Response;
 
