@@ -3,74 +3,91 @@ import { Platform } from 'react-native';
 import { IdentifyResponse } from '../types';
 
 const FALLBACK_ENDPOINTS = [
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent',
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
 ];
 
 async function prepareOptimizedImage(imageUri: string): Promise<{ base64: string; mimeType: string }> {
-  // 1. Web browser: Use high-speed HTML5 Canvas downsampling for instant ~100KB payload
-  if (Platform.OS === 'web' && typeof document !== 'undefined') {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        try {
-          const maxDim = 1024;
-          let { width, height } = img;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-            const parts = dataUrl.split(',');
-            resolve({ base64: parts[1] || '', mimeType: 'image/jpeg' });
-            return;
-          }
-        } catch (e) {
-          console.warn('Canvas resize fallback:', e);
-        }
-        if (imageUri.startsWith('data:')) {
-          const parts = imageUri.split(',');
-          resolve({ base64: parts[1] || '', mimeType: 'image/jpeg' });
-        } else {
-          resolve({ base64: '', mimeType: 'image/jpeg' });
-        }
-      };
-      img.onerror = () => {
-        if (imageUri.startsWith('data:')) {
-          const parts = imageUri.split(',');
-          resolve({ base64: parts[1] || '', mimeType: 'image/jpeg' });
-        } else {
-          resolve({ base64: '', mimeType: 'image/jpeg' });
-        }
-      };
-      img.src = imageUri;
-    });
-  }
-
-  // 2. React Native (Android / iOS): Use FileSystem
   let base64Data = '';
   let mimeType = 'image/jpeg';
+
   if (imageUri.startsWith('data:')) {
     const parts = imageUri.split(',');
     base64Data = parts[1] || '';
+    const match = imageUri.match(/data:([^;]+);/);
+    if (match) mimeType = match[1];
+  } else if (Platform.OS === 'web') {
+    try {
+      const res = await fetch(imageUri);
+      const blob = await res.blob();
+      mimeType = blob.type || 'image/jpeg';
+      base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const resStr = reader.result as string;
+          resolve(resStr.split(',')[1] || '');
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      console.warn('Web blob reading error:', err);
+    }
   } else {
-    base64Data = await FileSystem.readAsStringAsync(imageUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    try {
+      base64Data = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      if (imageUri.toLowerCase().endsWith('.png')) mimeType = 'image/png';
+      else if (imageUri.toLowerCase().endsWith('.webp')) mimeType = 'image/webp';
+    } catch (fsErr) {
+      console.warn('FileSystem reading error:', fsErr);
+    }
   }
-  if (imageUri.toLowerCase().endsWith('.png')) mimeType = 'image/png';
+
+  // Downscale if image is overly large (> 500KB) on Web to keep transmission fast
+  if (Platform.OS === 'web' && typeof document !== 'undefined' && base64Data.length > 500000) {
+    try {
+      const downscaled = await new Promise<string>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxDim = 1024;
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+              resolve(dataUrl.split(',')[1] || base64Data);
+              return;
+            }
+          } catch (e) {
+            console.warn('Canvas downsampling fallback:', e);
+          }
+          resolve(base64Data);
+        };
+        img.onerror = () => resolve(base64Data);
+        img.src = `data:${mimeType};base64,${base64Data}`;
+      });
+      base64Data = downscaled;
+      mimeType = 'image/jpeg';
+    } catch (downscaleErr) {
+      console.warn('Downscale failed, continuing with original:', downscaleErr);
+    }
+  }
+
   return { base64: base64Data, mimeType };
 }
 
@@ -166,7 +183,7 @@ export class GeminiDirectService {
       for (const endpoint of FALLBACK_ENDPOINTS) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 20000);
+          const timeoutId = setTimeout(() => controller.abort(), 35000);
 
           const response = await fetch(`${endpoint}?key=${apiKey}`, {
             method: 'POST',

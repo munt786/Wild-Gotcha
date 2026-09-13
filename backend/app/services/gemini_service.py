@@ -8,11 +8,10 @@ from app.models.schemas import TaxonomyClass, RarityTier, DangerLevel
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
 FALLBACK_ENDPOINTS = [
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent",
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
 ]
 
 SYSTEM_PROMPT = """You are an expert wildlife biologist, zoologist, and taxonomic classification engine for WildGotcha.
@@ -116,7 +115,7 @@ class GeminiVisionClassifier:
                 },
             }
 
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=35.0) as client:
                 data = None
                 for endpoint in FALLBACK_ENDPOINTS:
                     url = f"{endpoint}?key={api_key}"

@@ -90,7 +90,7 @@ export class ApiService {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for local backend
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout for AI inference
 
       let response: Response;
 
