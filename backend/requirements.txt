@@ -1,0 +1,22 @@
+# Core Web Framework
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+python-multipart>=0.0.9
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.1
+
+# Computer Vision & Math
+opencv-python-headless>=4.9.0.80
+numpy>=1.24.0,<2.0.0
+pillow>=10.2.0
+
+# Machine Learning (CPU-optimized for cloud deployment & low memory)
+tensorflow-cpu>=2.15.0
+
+# Database (Async MongoDB driver)
+motor>=3.3.2
+pymongo>=4.6.2
+
+# Utilities
+httpx>=0.27.0

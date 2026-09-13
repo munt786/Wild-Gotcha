@@ -1,0 +1,28 @@
+# Render Deployment Blueprint for WildGotcha Backend
+# Documentation: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: wildgotcha-api
+    runtime: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.13
+      - key: ENVIRONMENT
+        value: production
+      - key: MONGODB_URI
+        sync: false # Enter your MongoDB Atlas connection string securely in the Render Dashboard
+      - key: DATABASE_NAME
+        value: wildgotcha_db
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: CONFIDENCE_THRESHOLD
+        value: "0.15"
