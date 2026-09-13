@@ -21,8 +21,11 @@ wheels/
 .installed.cfg
 *.egg
 venv/
-ENV/
 .env
+.env.*
+*.env
+mobile/.env*
+backend/.env*
 scratch/
 backend/scratch/
 

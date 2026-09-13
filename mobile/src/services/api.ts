@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { IdentifyResponse, ScanHistoryResponse, StatsResponse } from '../types';
+import { GeminiDirectService } from './geminiDirectService';
 
 // Default base URL:
 // - Physical Android APK on your Wi-Fi: 'http://10.115.56.35:8000'
@@ -48,6 +49,12 @@ export class ApiService {
       }
       return { healthy: false, error: `HTTP ${response.status}: ${response.statusText}` };
     } catch (err: any) {
+      if (GeminiDirectService.isAvailable()) {
+        return {
+          healthy: true,
+          details: { mode: 'direct_gemini_vision', message: 'Direct Cloud Vision AI Active (Zero Local Server Needed)' },
+        };
+      }
       const errorMsg =
         err.name === 'AbortError'
           ? 'Connection timed out. Ensure the backend server is reachable.'
@@ -126,8 +133,23 @@ export class ApiService {
       const result: IdentifyResponse = await response.json();
       return result;
     } catch (error: any) {
-      console.warn('Identify API request failed:', error);
-      // If network fails (backend unreachable or aborted), return clear error so user is never misled
+      console.warn('Identify API local request failed:', error);
+
+      // Standalone Mobile AI Fallback: Direct Gemini Flash Vision via phone internet!
+      // This completely untethers the phone from the local PC laptop.
+      if (GeminiDirectService.isAvailable()) {
+        try {
+          console.log('Local backend unreachable. Classifying via Direct Gemini Flash Vision...');
+          const directResult = await GeminiDirectService.identifyDirectly(imageUri);
+          if (directResult) {
+            return directResult;
+          }
+        } catch (directErr) {
+          console.warn('Direct Gemini Vision call encountered error:', directErr);
+        }
+      }
+
+      // If network fails and direct AI is unavailable, return informative status
       if (
         error.name === 'AbortError' ||
         (error.message && (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')))
@@ -138,7 +160,9 @@ export class ApiService {
           message: `Cannot reach AI Backend at ${currentBaseUrl}. Ensure laptop has start_backend.bat running on the same Wi-Fi.`,
           common_name: 'Server Unreachable',
           scientific_name: 'Network Connection Required',
-          taxonomy_class: 'Other',
+          taxonomy_class: 'Other Wildlife',
+          category: 'Mammals',
+          breed: 'Wild Species',
           confidence_score: 0,
           rarity: 'Common',
           habitat: 'Local Network',

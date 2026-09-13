@@ -8,18 +8,25 @@ from app.models.schemas import TaxonomyClass, RarityTier, DangerLevel
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+FALLBACK_ENDPOINTS = [
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+]
 
 SYSTEM_PROMPT = """You are an expert wildlife biologist, zoologist, and taxonomic classification engine for WildGotcha.
 Analyze the user's uploaded camera image with extreme biological accuracy.
 
 RULES:
-1. NON-WILDLIFE CHECK: If the image does NOT contain a living animal, bird, insect, reptile, fish, arachnid, or domestic breed (for example: if it is a laptop, electronic device, furniture, empty room, vehicle, or human face), you MUST set "is_wildlife": false and specify the object.
+1. NON-WILDLIFE CHECK: If the image does NOT contain a living animal, bird, insect, reptile, fish, arachnid, or domestic breed (for example: if it is a laptop, electronic device, furniture, empty room, vehicle, or human face), you MUST set "is_wildlife": false and specify the detected object in "message".
 2. WILDLIFE IDENTIFICATION: If it IS a living creature, identify its exact common name, Latin binomial scientific name, and specific breed/subspecies if applicable.
-3. BIOGEOGRAPHICAL REGION: Provide the authentic native continent and country/realm of origin (e.g. "South & Southeast Asia", "Siberia & Arctic Tundra", "Madagascar", "Australasia (Oceania)", "North America", "South & Central America (Amazon)").
-4. TAXONOMY CLASS: Must be one of: "Mammalia", "Insecta", "Reptilia", "Arachnida", or "Other Wildlife" (for birds, amphibians, fish).
-5. RARITY: Must be one of: "Common", "Uncommon", "Rare", "Epic", "Legendary".
-6. DANGER LEVEL: Must be one of: "Harmless", "Mild", "Venomous/Dangerous", "Predatory".
+3. BIOGEOGRAPHICAL REGION: Provide the authentic native continent and country/realm of origin (e.g. "South & Southeast Asia", "Siberian Arctic • Worldwide Domestic", "Madagascar", "Australasia (Oceania)", "North America", "South & Central America (Amazon)").
+4. CATEGORY: Must be one of: "Mammals", "Birds", "Reptiles", "Amphibians", "Insects", "Arachnids", "Fish", "Other Wildlife".
+5. BREED: If it is a domestic breed (e.g. dog, cat, cattle, horse, poultry breed), specify the exact breed name (e.g. "Golden Retriever", "German Shepherd", "Persian Cat", "Holstein Friesian", "Leghorn Chicken"). If it is a wild animal, set "Wild Species".
+6. TAXONOMY CLASS: Must be one of: "Mammalia", "Insecta", "Reptilia", "Arachnida", or "Other Wildlife" (for birds, amphibians, fish).
+7. RARITY: Must be one of: "Common", "Uncommon", "Rare", "Epic", "Legendary".
+8. DANGER LEVEL: Must be one of: "Harmless", "Mild", "Venomous/Dangerous", "Predatory".
 
 You must respond ONLY with valid, parseable JSON using this exact structure:
 {
@@ -27,6 +34,8 @@ You must respond ONLY with valid, parseable JSON using this exact structure:
   "common_name": "Species Common Name",
   "scientific_name": "Genus species",
   "taxonomy_class": "Mammalia | Insecta | Reptilia | Arachnida | Other Wildlife",
+  "category": "Mammals | Birds | Reptiles | Amphibians | Insects | Arachnids | Fish | Other Wildlife",
+  "breed": "Breed name or Wild Species",
   "rarity": "Common | Uncommon | Rare | Epic | Legendary",
   "habitat": "Detailed authentic biome and habitat",
   "region": "Authentic native continent / origin",
@@ -41,29 +50,51 @@ You must respond ONLY with valid, parseable JSON using this exact structure:
 
 class GeminiVisionClassifier:
     """
-    Multimodal Vision-Language Classifier using Google Gemini 1.5 Flash.
+    Multimodal Vision-Language Classifier using Google Gemini Flash.
     Provides global taxonomic coverage across millions of species, birds, insects,
     reptiles, and domestic breeds with authentic geographical regions and zero mock data.
     """
 
     def __init__(self):
-        self.api_key = getattr(settings, "GEMINI_API_KEY", None) or None
+        self._cached_key = getattr(settings, "GEMINI_API_KEY", None) or None
+
+    def get_api_key(self) -> Optional[str]:
+        """Dynamically retrieves the configured Gemini API key with runtime .env fallback."""
+        key = getattr(settings, "GEMINI_API_KEY", None) or os.environ.get("GEMINI_API_KEY") or self._cached_key
+        if key and len(str(key).strip()) > 10:
+            return str(key).strip().strip('"').strip("'")
+
+        # Runtime fallback: read backend/.env directly if process started before env edit
+        try:
+            env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
+            if os.path.exists(env_file):
+                with open(env_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("GEMINI_API_KEY="):
+                            val = line.split("GEMINI_API_KEY=", 1)[1].strip().strip('"').strip("'")
+                            if len(val) > 10:
+                                self._cached_key = val
+                                return val
+        except Exception as e:
+            logger.debug("Failed to read .env dynamically: %s", str(e))
+        return None
 
     def is_available(self) -> bool:
         """Returns True if Gemini API Key is configured."""
-        return bool(self.api_key and len(self.api_key.strip()) > 10)
+        return self.get_api_key() is not None
 
     async def classify(self, image_bytes: bytes) -> Optional[Dict[str, Any]]:
         """
-        Submits image to Gemini 1.5 Flash Vision for classification.
+        Submits image to Gemini Vision for classification.
         Returns parsed species dictionary, or None if API key missing/fails.
         """
-        if not self.is_available():
+        api_key = self.get_api_key()
+        if not api_key:
             return None
 
         try:
             b64_image = base64.b64encode(image_bytes).decode("utf-8")
-            url = f"{GEMINI_API_ENDPOINT}?key={self.api_key.strip()}"
 
             payload = {
                 "contents": [
@@ -85,13 +116,23 @@ class GeminiVisionClassifier:
                 },
             }
 
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                response = await client.post(url, json=payload)
-                if response.status_code != 200:
-                    logger.warning("Gemini Vision API error %d: %s", response.status_code, response.text)
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                data = None
+                for endpoint in FALLBACK_ENDPOINTS:
+                    url = f"{endpoint}?key={api_key}"
+                    try:
+                        response = await client.post(url, json=payload)
+                        if response.status_code == 200:
+                            data = response.json()
+                            break
+                        else:
+                            logger.warning("Gemini endpoint %s returned %d: %s", endpoint, response.status_code, response.text[:200])
+                    except Exception as sub_e:
+                        logger.warning("Gemini endpoint %s error: %s", endpoint, str(sub_e))
+
+                if not data or "candidates" not in data or not data["candidates"]:
                     return None
 
-                data = response.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
                 parsed = json.loads(text)
 
