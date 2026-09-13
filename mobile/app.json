@@ -27,7 +27,6 @@
       },
       "package": "com.wildgotcha.app",
       "versionCode": 1,
-      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",

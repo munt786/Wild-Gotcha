@@ -247,8 +247,8 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
       if (cameraRef && !isAnalyzing) {
         try {
           const photo = await cameraRef.takePictureAsync({
-            quality: 1.0, // Best possible resolution & sharpness (100% uncompressed)
-            skipProcessing: false, // Ensures hardware ISP sharpening, denoising & clarity
+            quality: 0.8, // Crisp high-definition clarity optimized for fast AI transmission
+            skipProcessing: false,
             shutterSound: false,
           });
           if (photo && photo.uri) {
@@ -267,8 +267,8 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
       try {
         const res = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
-          allowsEditing: false, // Keep maximum camera sensor detail & resolution
-          quality: 1.0, // Lossless 100% quality
+          allowsEditing: false,
+          quality: 0.8, // High fidelity, fast transfer
         });
         if (!res.canceled && res.assets && res.assets[0]) {
           onCapture(res.assets[0].uri);

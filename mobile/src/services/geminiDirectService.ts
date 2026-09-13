@@ -5,8 +5,74 @@ import { IdentifyResponse } from '../types';
 const FALLBACK_ENDPOINTS = [
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
 ];
+
+async function prepareOptimizedImage(imageUri: string): Promise<{ base64: string; mimeType: string }> {
+  // 1. Web browser: Use high-speed HTML5 Canvas downsampling for instant ~100KB payload
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const maxDim = 1024;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            const parts = dataUrl.split(',');
+            resolve({ base64: parts[1] || '', mimeType: 'image/jpeg' });
+            return;
+          }
+        } catch (e) {
+          console.warn('Canvas resize fallback:', e);
+        }
+        if (imageUri.startsWith('data:')) {
+          const parts = imageUri.split(',');
+          resolve({ base64: parts[1] || '', mimeType: 'image/jpeg' });
+        } else {
+          resolve({ base64: '', mimeType: 'image/jpeg' });
+        }
+      };
+      img.onerror = () => {
+        if (imageUri.startsWith('data:')) {
+          const parts = imageUri.split(',');
+          resolve({ base64: parts[1] || '', mimeType: 'image/jpeg' });
+        } else {
+          resolve({ base64: '', mimeType: 'image/jpeg' });
+        }
+      };
+      img.src = imageUri;
+    });
+  }
+
+  // 2. React Native (Android / iOS): Use FileSystem
+  let base64Data = '';
+  let mimeType = 'image/jpeg';
+  if (imageUri.startsWith('data:')) {
+    const parts = imageUri.split(',');
+    base64Data = parts[1] || '';
+  } else {
+    base64Data = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  }
+  if (imageUri.toLowerCase().endsWith('.png')) mimeType = 'image/png';
+  return { base64: base64Data, mimeType };
+}
 
 const SYSTEM_PROMPT = `You are an expert wildlife biologist, zoologist, and taxonomic classification engine for WildGotcha.
 Analyze the user's uploaded camera image with extreme biological accuracy.
@@ -68,40 +134,10 @@ export class GeminiDirectService {
     }
 
     try {
-      let base64Data = '';
-      let mimeType = 'image/jpeg';
-
-      if (imageUri.startsWith('data:')) {
-        const parts = imageUri.split(',');
-        base64Data = parts[1] || '';
-        const mimeMatch = imageUri.match(/data:([^;]+);/);
-        if (mimeMatch) mimeType = mimeMatch[1];
-      } else if (Platform.OS === 'web') {
-        // Web fetch blob
-        const res = await fetch(imageUri);
-        const blob = await res.blob();
-        base64Data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } else {
-        // React Native FileSystem
-        base64Data = await FileSystem.readAsStringAsync(imageUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        if (imageUri.toLowerCase().endsWith('.png')) {
-          mimeType = 'image/png';
-        } else if (imageUri.toLowerCase().endsWith('.webp')) {
-          mimeType = 'image/webp';
-        }
-      }
+      const { base64: base64Data, mimeType } = await prepareOptimizedImage(imageUri);
 
       if (!base64Data) {
+        console.warn('Failed to extract base64 data from imageUri');
         return null;
       }
 
@@ -130,7 +166,7 @@ export class GeminiDirectService {
       for (const endpoint of FALLBACK_ENDPOINTS) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000);
+          const timeoutId = setTimeout(() => controller.abort(), 20000);
 
           const response = await fetch(`${endpoint}?key=${apiKey}`, {
             method: 'POST',
@@ -146,6 +182,8 @@ export class GeminiDirectService {
           if (response.ok) {
             responseData = await response.json();
             break;
+          } else {
+            console.warn(`Gemini endpoint ${endpoint} status:`, response.status);
           }
         } catch (subErr) {
           console.warn(`Gemini endpoint ${endpoint} failed:`, subErr);
