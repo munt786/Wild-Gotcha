@@ -2,15 +2,14 @@ import { Platform } from 'react-native';
 import { IdentifyResponse, ScanHistoryResponse, StatsResponse } from '../types';
 
 // Default base URL:
-// - Android Emulator: 'http://10.0.2.2:8000'
-// - iOS Simulator: 'http://localhost:8000'
-// - Physical device: replace with your local WiFi IP e.g. 'http://192.168.1.15:8000'
-// - Production: replace with your Render URL e.g. 'https://wildgotcha-api.onrender.com'
+// - Physical Android APK on your Wi-Fi: 'http://10.115.56.35:8000'
+// - Web / Localhost: 'http://127.0.0.1:8000'
+// - Production Cloud: replace with your Render URL e.g. 'https://wildgotcha-api.onrender.com'
 const DEFAULT_URL = Platform.select({
-  android: 'http://10.0.2.2:8000',
-  ios: 'http://127.0.0.1:8000',
+  android: 'http://10.115.56.35:8000',
+  ios: 'http://10.115.56.35:8000',
   web: 'http://127.0.0.1:8000',
-  default: 'http://127.0.0.1:8000',
+  default: 'http://10.115.56.35:8000',
 });
 
 let currentBaseUrl = DEFAULT_URL;
