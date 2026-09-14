@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { IdentifyResponse, TaxonomicCategory, TaxonomyClass } from '../types';
-import { generateStickerCrop } from './geminiDirectService';
 
 // Load the 521+ authentic species and recognized breeds encyclopedia
 const ENCYCLOPEDIA_RAW: Record<string, any> = require('../data/wildlife_encyclopedia.json');
@@ -166,15 +165,6 @@ export class LocalWildlifeEngine {
         };
       }
 
-      // 4. Generate Centered Bounding Box and Specimen Sticker on Native Graphics Engine
-      const box2d: [number, number, number, number] = [180, 180, 820, 820];
-      let stickerUri: string | undefined = undefined;
-      try {
-        stickerUri = await generateStickerCrop(imageUri, box2d);
-      } catch (cropErr) {
-        console.warn('Offline sticker crop error:', cropErr);
-      }
-
       // 4. Find sibling species in the same category/taxonomy class for realistic candidate distribution
       const siblingCandidates = SPECIES_ENTRIES.filter(
         (s) => s.category === match.category && s.slug !== match.slug
@@ -211,8 +201,6 @@ export class LocalWildlifeEngine {
         danger_level: match.danger_level as any,
         scanned_at: new Date().toISOString(),
         persisted: false,
-        box_2d: box2d,
-        sticker_uri: stickerUri || imageUri,
         top_candidates: topCandidates,
       };
     } catch (err: any) {
@@ -234,8 +222,6 @@ export class LocalWildlifeEngine {
         danger_level: fallback.danger_level as any,
         scanned_at: new Date().toISOString(),
         persisted: false,
-        box_2d: [200, 200, 800, 800],
-        sticker_uri: imageUri,
         top_candidates: [],
       };
     }

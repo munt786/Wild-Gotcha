@@ -92,48 +92,10 @@ async function prepareOptimizedImage(imageUri: string): Promise<{ base64: string
   return { base64: base64Data, mimeType };
 }
 
-/**
- * On-Device Creature Sticker Crop:
- * Isolates the creature inside the bounding box and generates a clean,
- * focused sticker crop using the native phone graphics engine (0 extra tokens, ~30ms).
- */
 export async function generateStickerCrop(
-  imageUri: string,
-  box2d: [number, number, number, number]
+  _imageUri: string,
+  _box2d?: [number, number, number, number]
 ): Promise<string | undefined> {
-  try {
-    if (Platform.OS === 'web' || !imageUri || imageUri.startsWith('data:')) {
-      return undefined;
-    }
-
-    const [ymin, xmin, ymax, xmax] = box2d;
-    const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-      RNImage.getSize(imageUri, (width, height) => resolve({ width, height }), reject);
-    });
-
-    const imgW = dimensions.width;
-    const imgH = dimensions.height;
-
-    // Convert normalized coordinates (0-1000) to actual pixels with an 8% padding margin
-    const padX = Math.round(((xmax - xmin) / 1000) * imgW * 0.08);
-    const padY = Math.round(((ymax - ymin) / 1000) * imgH * 0.08);
-
-    const originX = Math.max(0, Math.round((xmin / 1000) * imgW) - padX);
-    const originY = Math.max(0, Math.round((ymin / 1000) * imgH) - padY);
-    const cropW = Math.min(imgW - originX, Math.round(((xmax - xmin) / 1000) * imgW) + padX * 2);
-    const cropH = Math.min(imgH - originY, Math.round(((ymax - ymin) / 1000) * imgH) + padY * 2);
-
-    if (cropW > 20 && cropH > 20) {
-      const manip = await ImageManipulator.manipulateAsync(
-        imageUri,
-        [{ crop: { originX, originY, width: cropW, height: cropH } }],
-        { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      return manip.uri;
-    }
-  } catch (err) {
-    console.warn('Sticker cropping error:', err);
-  }
   return undefined;
 }
 
@@ -357,11 +319,6 @@ export class GeminiDirectService {
         }
       }
 
-      let stickerUri: string | undefined = undefined;
-      if (cleanBox) {
-        stickerUri = await generateStickerCrop(imageUri, cleanBox);
-      }
-
       return {
         success: true,
         is_wildlife: true,
@@ -378,7 +335,6 @@ export class GeminiDirectService {
         fun_fact: parsed.fun_fact || 'A fascinating creature of the wild registered to your Dex.',
         danger_level: parsed.danger_level || 'Harmless',
         box_2d: cleanBox,
-        sticker_uri: stickerUri,
         scanned_at: new Date().toISOString(),
         persisted: false,
         message: parsed.message || `Gotcha! ${parsed.common_name} registered to your Dex!`,

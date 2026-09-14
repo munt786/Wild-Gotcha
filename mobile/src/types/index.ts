@@ -129,3 +129,16 @@ export interface PendingScan {
   latitude?: number;
   longitude?: number;
 }
+
+export type CloudSyncStatus = 'synced' | 'syncing' | 'offline_saved' | 'unconfigured' | 'error';
+
+export interface UserProfile {
+  id: string;
+  email?: string;
+  displayName: string;
+  avatarUrl?: string;
+  isGuest: boolean;
+  level: number;
+  rankTitle: string;
+  createdAt: string;
+}

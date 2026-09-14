@@ -8,7 +8,7 @@ import {
   Pressable,
   Dimensions,
 } from 'react-native';
-import { ActiveTab, TaxonomicCategory } from '../types';
+import { ActiveTab, TaxonomicCategory, UserProfile } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
@@ -37,6 +37,8 @@ interface HeaderProps {
   onSelectCategory: (category: TaxonomicCategory) => void;
   isOfflineMode?: boolean;
   onToggleOfflineMode?: () => void;
+  user?: UserProfile | null;
+  onOpenAuth?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -45,6 +47,8 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectCategory,
   isOfflineMode = false,
   onToggleOfflineMode,
+  user,
+  onOpenAuth,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -55,53 +59,75 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <View style={styles.headerAnchor}>
-      {activeTab === 'INDEX' ? (
-        // Screenshot 1: Floating Top Pill [ ⊞ All ⌵ ]
-        <TouchableOpacity
-          style={styles.topPill}
-          onPress={() => setDropdownOpen(!dropdownOpen)}
-          activeOpacity={0.85}
-        >
-          {/* 4-square Grid Icon */}
-          <View style={styles.gridIconBox}>
-            <View style={styles.gridSquare} />
-            <View style={styles.gridSquare} />
-            <View style={styles.gridSquare} />
-            <View style={styles.gridSquare} />
-          </View>
+      <View style={styles.headerRow}>
+        {/* Left: Category Dropdown or Catches Pill */}
+        <View style={styles.leftPillContainer}>
+          {activeTab === 'INDEX' ? (
+            // Screenshot 1: Floating Top Pill [ ⊞ All ⌵ ]
+            <TouchableOpacity
+              style={styles.topPill}
+              onPress={() => setDropdownOpen(!dropdownOpen)}
+              activeOpacity={0.85}
+            >
+              {/* 4-square Grid Icon */}
+              <View style={styles.gridIconBox}>
+                <View style={styles.gridSquare} />
+                <View style={styles.gridSquare} />
+                <View style={styles.gridSquare} />
+                <View style={styles.gridSquare} />
+              </View>
 
-          <Text style={styles.pillText}>{selectedCategory}</Text>
-          <Text style={styles.chevron}>⌵</Text>
-        </TouchableOpacity>
-      ) : (
-        // Screenshot 3: Floating Top Pill [ ≘ Catches ]
-        <View style={styles.topPillStatic}>
-          <Text style={styles.layersIcon}>≘</Text>
-          <Text style={styles.pillTextStatic}>Catches</Text>
+              <Text style={styles.pillText}>{selectedCategory}</Text>
+              <Text style={styles.chevron}>⌵</Text>
+            </TouchableOpacity>
+          ) : (
+            // Screenshot 3: Floating Top Pill [ ≘ Catches ]
+            <View style={styles.topPillStatic}>
+              <Text style={styles.layersIcon}>≘</Text>
+              <Text style={styles.pillTextStatic}>Catches</Text>
+            </View>
+          )}
         </View>
-      )}
 
-      {/* Online / Offline Mode Switch Pill (Top Right) */}
-      {onToggleOfflineMode && (
-        <TouchableOpacity
-          style={[
-            styles.modePill,
-            isOfflineMode ? styles.modePillOffline : styles.modePillOnline,
-          ]}
-          onPress={onToggleOfflineMode}
-          activeOpacity={0.85}
-        >
-          <View
-            style={[
-              styles.modeDot,
-              { backgroundColor: isOfflineMode ? '#F59E0B' : '#10B981' },
-            ]}
-          />
-          <Text style={styles.modePillText}>
-            {isOfflineMode ? 'Offline' : 'Online'}
-          </Text>
-        </TouchableOpacity>
-      )}
+        {/* Right Actions: User Profile / Passport + Online / Offline Mode */}
+        <View style={styles.topRightActions}>
+          {onOpenAuth && (
+            <TouchableOpacity
+              style={styles.profilePill}
+              onPress={onOpenAuth}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.profileEmoji}>
+                {user && !user.isGuest ? '👤' : '🐾'}
+              </Text>
+              <Text style={styles.profilePillText} numberOfLines={1}>
+                {user && !user.isGuest ? user.displayName.split(' ')[0] : 'Guest'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {onToggleOfflineMode && (
+            <TouchableOpacity
+              style={[
+                styles.modePill,
+                isOfflineMode ? styles.modePillOffline : styles.modePillOnline,
+              ]}
+              onPress={onToggleOfflineMode}
+              activeOpacity={0.85}
+            >
+              <View
+                style={[
+                  styles.modeDot,
+                  { backgroundColor: isOfflineMode ? '#F59E0B' : '#10B981' },
+                ]}
+              />
+              <Text style={styles.modePillText}>
+                {isOfflineMode ? 'Offline' : 'Online'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       {/* Screenshot 2: 2-Column Floating Dropdown Card */}
       <Modal
@@ -192,17 +218,50 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
-  modePill: {
-    position: 'absolute',
-    right: 16,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  leftPillContainer: {
+    flexShrink: 0,
+  },
+  topRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  profilePill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    ...SHADOWS.soft,
+  },
+  profileEmoji: {
+    fontSize: 12,
+    marginRight: 4,
+  },
+  profilePillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#111111',
+    maxWidth: 65,
+  },
+  modePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 7,
+    paddingHorizontal: 11,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#E5E7EB',

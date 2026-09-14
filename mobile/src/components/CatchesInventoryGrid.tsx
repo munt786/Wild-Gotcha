@@ -57,9 +57,9 @@ export const CatchesInventoryGrid: React.FC<CatchesInventoryGridProps> = ({
             {/* Specimen Photo */}
             <View style={styles.imageFrame}>
               <Image
-                source={{ uri: item.sticker_url || item.image_url }}
+                source={{ uri: item.image_url }}
                 style={styles.catchImage}
-                resizeMode={item.sticker_url ? 'contain' : 'cover'}
+                resizeMode="cover"
               />
             </View>
 

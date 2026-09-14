@@ -7,8 +7,10 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
+  ActivityIndicator,
+  Linking,
 } from 'react-native';
-import { ActiveTab, TaxonomicCategory, Specimen, CatchRecord, RarityLevel } from './src/types';
+import { ActiveTab, TaxonomicCategory, Specimen, CatchRecord, RarityLevel, UserProfile, CloudSyncStatus } from './src/types';
 import { COLORS } from './src/theme/colors';
 import { Header } from './src/components/Header';
 import { BottomNavBar } from './src/components/BottomNavBar';
@@ -16,16 +18,27 @@ import { UniqueIndexGrid } from './src/components/UniqueIndexGrid';
 import { ScannerView, ScannerViewHandle } from './src/components/ScannerView';
 import { CatchesInventoryGrid } from './src/components/CatchesInventoryGrid';
 import { SpecimenDetailModal } from './src/components/SpecimenDetailModal';
+import { AuthModal } from './src/components/AuthModal';
+import { AuthScreen } from './src/components/AuthScreen';
 import { ApiService } from './src/services/api';
+import { StorageService } from './src/services/storageService';
+import { SupabaseService } from './src/services/supabaseService';
 
 export default function App() {
   // Navigation & Category State
   const [activeTab, setActiveTab] = useState<ActiveTab>('INDEX');
   const [selectedCategory, setSelectedCategory] = useState<TaxonomicCategory>('All');
 
-  // Specimen & Catches Collection State (starts empty matching user mockup)
+  // Specimen & Catches Collection State (persisted strictly per user)
   const [specimens, setSpecimens] = useState<Specimen[]>([]);
   const [catches, setCatches] = useState<CatchRecord[]>([]);
+
+  // User Authentication & Cloud Sync State
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authChecked, setAuthChecked] = useState<boolean>(false);
+  const [authModalVisible, setAuthModalVisible] = useState<boolean>(false);
+  const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>('offline_saved');
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
   // Online (Gemini Cloud AI) vs Offline (On-Device Local Wildlife Engine) Mode
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
@@ -45,12 +58,164 @@ export default function App() {
     type: 'warning' | 'info' | 'error';
   } | null>(null);
 
+  // On App Mount: Restore saved user session or detect OAuth redirect
+  React.useEffect(() => {
+    const initApp = async () => {
+      try {
+        let savedProfile = await StorageService.loadUserProfile();
+
+        // Check if user just returned from Google OAuth redirect!
+        if (!savedProfile && SupabaseService.isConfigured()) {
+          const oauthUser = await SupabaseService.getCurrentSessionUser();
+          if (oauthUser) {
+            savedProfile = oauthUser;
+            await StorageService.saveUserProfile(oauthUser);
+          }
+        }
+
+        if (savedProfile) {
+          setUser(savedProfile);
+          // Load this specific user's isolated catches and specimens
+          const [savedCatches, savedSpecimens] = await Promise.all([
+            StorageService.loadCatches(savedProfile.id),
+            StorageService.loadSpecimens(savedProfile.id),
+          ]);
+
+          if (savedCatches.length > 0) setCatches(savedCatches);
+          if (savedSpecimens.length > 0) setSpecimens(savedSpecimens);
+
+          if (!savedProfile.isGuest && SupabaseService.isConfigured()) {
+            setSyncStatus('syncing');
+            const cloudCatches = await SupabaseService.fetchCloudCatches(savedProfile.id);
+            if (cloudCatches.length > 0) {
+              const catchMap = new Map<string, CatchRecord>();
+              [...savedCatches, ...cloudCatches].forEach((c) => catchMap.set(c.catch_id, c));
+              const merged = Array.from(catchMap.values());
+              setCatches(merged);
+              await StorageService.saveCatches(savedProfile.id, merged);
+              setSyncStatus('synced');
+            } else {
+              setSyncStatus('synced');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Initial storage load note:', err);
+      } finally {
+        setAuthChecked(true);
+      }
+    };
+
+    initApp();
+
+    // Listen for OAuth session changes (e.g. Google redirect)
+    const authSubscription = SupabaseService.onAuthStateChange(async (oauthUser) => {
+      if (oauthUser) {
+        await handleUserChange(oauthUser);
+      }
+    });
+
+    // Deep linking handler for native OAuth redirects (e.g. wildgotcha://auth-callback)
+    const handleDeepLink = async (event: { url: string }) => {
+      if (event.url && (event.url.includes('auth-callback') || event.url.includes('access_token') || event.url.includes('code='))) {
+        const oauthUser = await SupabaseService.handleAuthRedirectUrl(event.url);
+        if (oauthUser) {
+          await handleUserChange(oauthUser);
+        }
+      }
+    };
+
+    const linkSub = Linking.addEventListener('url', handleDeepLink);
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
+    return () => {
+      authSubscription.unsubscribe();
+      linkSub.remove();
+    };
+  }, []);
+
   React.useEffect(() => {
     if (scanNotice) {
       const timer = setTimeout(() => setScanNotice(null), 7000);
       return () => clearTimeout(timer);
     }
   }, [scanNotice]);
+
+  // Handle User Auth change (login, register, guest, logout)
+  const handleUserChange = async (newProfile: UserProfile | null) => {
+    if (newProfile) {
+      setDeleteNotice(null);
+      setUser(newProfile);
+      await StorageService.saveUserProfile(newProfile);
+
+      // Load this user's isolated catches and specimens from local storage
+      const [userCatches, userSpecimens] = await Promise.all([
+        StorageService.loadCatches(newProfile.id),
+        StorageService.loadSpecimens(newProfile.id),
+      ]);
+      setCatches(userCatches);
+      setSpecimens(userSpecimens);
+
+      if (!newProfile.isGuest && SupabaseService.isConfigured()) {
+        setSyncStatus('syncing');
+        const cloudCatches = await SupabaseService.fetchCloudCatches(newProfile.id);
+        const catchMap = new Map<string, CatchRecord>();
+        [...userCatches, ...cloudCatches].forEach((c) => catchMap.set(c.catch_id, c));
+        const merged = Array.from(catchMap.values());
+        setCatches(merged);
+        await StorageService.saveCatches(newProfile.id, merged);
+        await SupabaseService.syncCatchesToCloud(newProfile.id, merged);
+        setSyncStatus('synced');
+        setScanNotice({
+          title: 'Cloud Dex Synced ☁️',
+          message: `${merged.length} catches verified in your account.`,
+          type: 'info',
+        });
+      } else {
+        setSyncStatus('offline_saved');
+      }
+    } else {
+      // Complete user sign-out: clear state so nothing leaks into another account
+      setUser(null);
+      setCatches([]);
+      setSpecimens([]);
+      await StorageService.saveUserProfile(null);
+      setSyncStatus('offline_saved');
+    }
+  };
+
+  // Handle Account Deletion: purges session and displays notice on login screen
+  const handleAccountDeleted = () => {
+    setDeleteNotice('🗑️ Your account and all associated cloud data have been permanently deleted.');
+    handleUserChange(null);
+  };
+
+  // Trigger manual cloud sync
+  const handleTriggerSync = async () => {
+    if (!user || user.isGuest) {
+      setAuthModalVisible(true);
+      return;
+    }
+    setSyncStatus('syncing');
+    const res = await SupabaseService.syncCatchesToCloud(user.id, catches);
+    if (res.success) {
+      setSyncStatus('synced');
+      setScanNotice({
+        title: 'Cloud Sync Complete ☁️',
+        message: `${res.syncedCount} catches safely verified in cloud storage.`,
+        type: 'info',
+      });
+    } else {
+      setSyncStatus('error');
+      setScanNotice({
+        title: 'Cloud Sync Notice',
+        message: res.error || 'Could not sync cloud. All catches remain saved on your device.',
+        type: 'warning',
+      });
+    }
+  };
 
   // Toggle Online vs Offline Mode
   const handleToggleOfflineMode = () => {
@@ -60,7 +225,7 @@ export default function App() {
         title: next ? '🟠 Offline Mode Active' : '🟢 Online Mode Active',
         message: next
           ? 'On-device Wildlife Dex active. Creatures will be identified locally using the built-in 521+ species database with zero internet.'
-          : 'Live Gemini Cloud AI restored. Universal species identification, coordinate localization, and stickers active.',
+          : 'Live Gemini Cloud AI restored. Universal species identification and real-time field scanner active.',
         type: 'info',
       });
       return next;
@@ -254,7 +419,6 @@ export default function App() {
         breed: finalBreed,
         rarity: mappedRarity,
         image_url: imageUri,
-        sticker_url: res.sticker_uri || imageUri,
         box_2d: res.box_2d,
         biome: res.habitat || 'Temperate Wilderness',
         region: authenticRegion,
@@ -263,7 +427,10 @@ export default function App() {
         lore: res.fun_fact || 'Remarkable wildlife creature cataloged in Gotcha! Lens.',
       };
 
-      setCatches((prev) => [newCatch, ...prev]);
+      const userId = user?.id || 'guest';
+      const updatedCatches = [newCatch, ...catches];
+      setCatches(updatedCatches);
+      await StorageService.saveCatches(userId, updatedCatches);
 
       // 7. Automatically Record to Unique Index (Pokédex)
       const existingIdx = specimens.findIndex(
@@ -271,6 +438,7 @@ export default function App() {
       );
 
       let targetSpecimen: Specimen;
+      let updatedSpecimens: Specimen[];
 
       if (existingIdx >= 0) {
         const existing = specimens[existingIdx];
@@ -278,17 +446,14 @@ export default function App() {
           ...existing,
           captured_count: existing.captured_count + 1,
           image_url: imageUri, // update with newest capture photo
-          sticker_url: res.sticker_uri || existing.sticker_url || imageUri,
           box_2d: res.box_2d || existing.box_2d,
           region: authenticRegion,
           breed: finalBreed,
           category: finalCategory,
         };
-        setSpecimens((prev) => {
-          const next = [...prev];
-          next[existingIdx] = targetSpecimen;
-          return next;
-        });
+        updatedSpecimens = [...specimens];
+        updatedSpecimens[existingIdx] = targetSpecimen;
+        setSpecimens(updatedSpecimens);
       } else {
         targetSpecimen = {
           id: specimenId,
@@ -299,7 +464,6 @@ export default function App() {
           breed: finalBreed,
           rarity: mappedRarity,
           image_url: imageUri,
-          sticker_url: res.sticker_uri || imageUri,
           box_2d: res.box_2d,
           lore: res.fun_fact || 'Remarkable wildlife creature cataloged in Gotcha! Lens.',
           biome: res.habitat || 'Temperate Wilderness',
@@ -309,7 +473,18 @@ export default function App() {
           captured_count: 1,
           first_caught_at: now.toISOString(),
         };
-        setSpecimens((prev) => [targetSpecimen, ...prev]);
+        updatedSpecimens = [targetSpecimen, ...specimens];
+        setSpecimens(updatedSpecimens);
+      }
+      await StorageService.saveSpecimens(userId, updatedSpecimens);
+
+      // Cloud auto-sync if authenticated
+      if (user && !user.isGuest && SupabaseService.isConfigured()) {
+        SupabaseService.syncCatchesToCloud(user.id, updatedCatches).then((syncRes) => {
+          if (syncRes.success) setSyncStatus('synced');
+        }).catch(() => {
+          // Keep offline state safe
+        });
       }
 
       // 8. Directly open Encyclopedia Specimen Details Modal!
@@ -374,9 +549,31 @@ export default function App() {
 
   // Release Specimen action
   const handleReleaseSpecimen = (specimenId: string) => {
-    setSpecimens((prev) => prev.filter((s) => s.id !== specimenId));
-    setCatches((prev) => prev.filter((c) => c.specimen_id !== specimenId));
+    const userId = user?.id || 'guest';
+    const nextSpecimens = specimens.filter((s) => s.id !== specimenId);
+    const nextCatches = catches.filter((c) => c.specimen_id !== specimenId);
+    setSpecimens(nextSpecimens);
+    setCatches(nextCatches);
+    StorageService.saveSpecimens(userId, nextSpecimens);
+    StorageService.saveCatches(userId, nextCatches);
+    if (user && !user.isGuest && SupabaseService.isConfigured()) {
+      SupabaseService.syncCatchesToCloud(user.id, nextCatches).catch(() => {});
+    }
   };
+
+  // 1. Splash / Session Restoration Screen
+  if (!authChecked) {
+    return (
+      <SafeAreaView style={[styles.appShell, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#10B981" />
+      </SafeAreaView>
+    );
+  }
+
+  // 2. Dedicated Full-Page Login & Sign Up Screen (if no session active)
+  if (!user) {
+    return <AuthScreen onLoginSuccess={handleUserChange} statusMessage={deleteNotice} />;
+  }
 
   return (
     <SafeAreaView style={styles.appShell}>
@@ -412,6 +609,8 @@ export default function App() {
         onSelectCategory={setSelectedCategory}
         isOfflineMode={isOfflineMode}
         onToggleOfflineMode={handleToggleOfflineMode}
+        user={user}
+        onOpenAuth={() => setAuthModalVisible(true)}
       />
 
       {/* 3. Main Content Views (Three Tabs) */}
@@ -459,6 +658,19 @@ export default function App() {
         specimen={selectedDetailSpecimen}
         onClose={() => setDetailModalVisible(false)}
         onRelease={handleReleaseSpecimen}
+      />
+
+      {/* 6. User Passport & Cloud Storage Modal */}
+      <AuthModal
+        visible={authModalVisible}
+        onClose={() => setAuthModalVisible(false)}
+        user={user}
+        onUserChange={handleUserChange}
+        onAccountDeleted={handleAccountDeleted}
+        catchesCount={catches.length}
+        uniqueCount={specimens.length}
+        onTriggerSync={handleTriggerSync}
+        syncStatus={syncStatus}
       />
     </SafeAreaView>
   );

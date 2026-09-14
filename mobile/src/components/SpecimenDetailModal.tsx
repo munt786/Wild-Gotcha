@@ -30,17 +30,12 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
   onRelease,
 }) => {
   const [imageFit, setImageFit] = useState<'contain' | 'cover'>('contain');
-  const [viewMode, setViewMode] = useState<'sticker' | 'photo'>('sticker');
 
   useEffect(() => {
     setImageFit('contain');
-    setViewMode('sticker');
   }, [specimen?.id]);
 
   if (!specimen) return null;
-
-  const hasSticker = Boolean(specimen.sticker_url && specimen.sticker_url !== specimen.image_url);
-  const activeImageUri = viewMode === 'sticker' && specimen.sticker_url ? specimen.sticker_url : specimen.image_url;
 
   // Danger 5-pip color-coded meter from Green (1) to Red (5)
   const pipColors = [
@@ -104,73 +99,35 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
               contentContainerStyle={styles.scrollContent}
               bounces={false}
             >
-              {/* Sticker vs Full Photo Switcher */}
-              {hasSticker && (
-                <View style={styles.stickerToggleRow}>
-                  <TouchableOpacity
-                    style={[styles.stickerToggleBtn, viewMode === 'sticker' && styles.stickerToggleBtnActive]}
-                    onPress={() => setViewMode('sticker')}
-                  >
-                    <Text style={[styles.stickerToggleText, viewMode === 'sticker' && styles.stickerToggleTextActive]}>
-                      ✨ Specimen Sticker
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.stickerToggleBtn, viewMode === 'photo' && styles.stickerToggleBtnActive]}
-                    onPress={() => setViewMode('photo')}
-                  >
-                    <Text style={[styles.stickerToggleText, viewMode === 'photo' && styles.stickerToggleTextActive]}>
-                      📷 Full Photo
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
               {/* Polaroid Framed Preview Image with Complete Uncut View */}
-              <View
-                style={[
-                  styles.polaroidFrame,
-                  viewMode === 'sticker' && hasSticker && [
-                    styles.stickerPolaroidFrame,
-                    { borderColor: '#FFFFFF', shadowColor: rarityColor },
-                  ],
-                ]}
-              >
+              <View style={styles.polaroidFrame}>
                 <TouchableOpacity
                   activeOpacity={0.92}
                   onPress={() => setImageFit((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
                   style={styles.imageContainer}
                 >
                   <Image
-                    source={{ uri: activeImageUri }}
+                    source={{ uri: specimen.image_url }}
                     style={styles.polaroidImage}
-                    resizeMode={viewMode === 'sticker' && hasSticker ? 'contain' : imageFit}
+                    resizeMode={imageFit}
                   />
 
                   {/* Sleek Toggle Button: Full Photo vs Zoomed */}
-                  {viewMode === 'photo' && (
-                    <TouchableOpacity
-                      style={styles.fitToggleBadge}
-                      onPress={() => setImageFit((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Text style={styles.fitToggleText}>
-                        {imageFit === 'contain' ? '⛶ Full Photo' : '⊡ Zoomed'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    style={styles.fitToggleBadge}
+                    onPress={() => setImageFit((prev) => (prev === 'contain' ? 'cover' : 'contain'))}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.fitToggleText}>
+                      {imageFit === 'contain' ? '⛶ Full Photo' : '⊡ Zoomed'}
+                    </Text>
+                  </TouchableOpacity>
 
                   {/* Rarity Pill Tag: Common / Uncommon / Rare / Epic / Legendary */}
                   <View style={[styles.rarityBadge, { backgroundColor: rarityColor }]}>
                     <Text style={styles.rarityBadgeText}>{specimen.rarity}</Text>
                   </View>
-
-                  {viewMode === 'sticker' && hasSticker && (
-                    <View style={styles.stickerBadgePill}>
-                      <Text style={styles.stickerBadgeText}>🏷️ CLEAN STICKER</Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               </View>
 
@@ -346,59 +303,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 8,
     paddingBottom: 24,
-  },
-  stickerToggleRow: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    marginVertical: 6,
-    padding: 3,
-  },
-  stickerToggleBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    alignItems: 'center',
-    borderRadius: 9,
-  },
-  stickerToggleBtnActive: {
-    backgroundColor: COLORS.surface,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-  },
-  stickerToggleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
-  stickerToggleTextActive: {
-    color: COLORS.textPrimary,
-  },
-  stickerPolaroidFrame: {
-    backgroundColor: '#0B1120',
-    borderWidth: 3.5,
-    borderRadius: 16,
-    shadowOpacity: 0.7,
-    shadowRadius: 14,
-    elevation: 8,
-  },
-  stickerBadgePill: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  stickerBadgeText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
   },
   polaroidFrame: {
     backgroundColor: COLORS.surface,
