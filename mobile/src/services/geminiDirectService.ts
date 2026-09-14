@@ -3,8 +3,8 @@ import { Platform } from 'react-native';
 import { IdentifyResponse } from '../types';
 
 const FALLBACK_ENDPOINTS = [
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent',
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent',
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
 ];
 
 async function prepareOptimizedImage(imageUri: string): Promise<{ base64: string; mimeType: string }> {
@@ -175,15 +175,18 @@ export class GeminiDirectService {
         generationConfig: {
           temperature: 0.1,
           response_mime_type: 'application/json',
+          maxOutputTokens: 350,
         },
       };
 
+      let lastStatus = 0;
+      let lastErrorMessage = '';
       let responseData: any = null;
 
       for (const endpoint of FALLBACK_ENDPOINTS) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 35000);
+          const timeoutId = setTimeout(() => controller.abort(), 20000);
 
           const response = await fetch(`${endpoint}?key=${apiKey}`, {
             method: 'POST',
@@ -200,15 +203,58 @@ export class GeminiDirectService {
             responseData = await response.json();
             break;
           } else {
+            lastStatus = response.status;
             console.warn(`Gemini endpoint ${endpoint} status:`, response.status);
           }
-        } catch (subErr) {
+        } catch (subErr: any) {
+          lastErrorMessage = subErr?.message || '';
           console.warn(`Gemini endpoint ${endpoint} failed:`, subErr);
         }
       }
 
+      if (lastStatus === 429) {
+        return {
+          success: false,
+          is_wildlife: false,
+          message: 'AI request limit reached (HTTP 429). Please wait a few moments and try scanning again.',
+          common_name: 'Rate Limit Reached',
+          scientific_name: 'Quota Limit',
+          taxonomy_class: 'Other Wildlife',
+          category: 'Mammals',
+          breed: 'Wild Species',
+          confidence_score: 0,
+          rarity: 'Common',
+          habitat: 'Cloud Server',
+          region: 'Global',
+          fun_fact: 'The Gemini free tier has a per-minute rate limit. Waiting 10-15 seconds will restore scanning.',
+          danger_level: 'Harmless',
+          scanned_at: new Date().toISOString(),
+          persisted: false,
+          top_candidates: [],
+        };
+      }
+
       if (!responseData || !responseData.candidates || !responseData.candidates[0]) {
-        return null;
+        // Network failure / phone offline / airplane mode
+        return {
+          success: false,
+          is_wildlife: false,
+          message: 'Network connection required: Please verify your phone has active mobile data (4G/5G) or Wi-Fi.',
+          common_name: 'Connection Required',
+          scientific_name: 'Offline',
+          taxonomy_class: 'Other Wildlife',
+          category: 'Mammals',
+          breed: 'Wild Species',
+          confidence_score: 0,
+          rarity: 'Common',
+          habitat: 'Mobile Network',
+          region: 'Global',
+          fun_fact: 'WildGotcha scans species directly from your phone over mobile data or Wi-Fi with 0% dependence on any laptop.',
+          danger_level: 'Harmless',
+          scanned_at: new Date().toISOString(),
+          persisted: false,
+          top_candidates: [],
+        };
       }
 
       const rawText = responseData.candidates[0].content?.parts?.[0]?.text;

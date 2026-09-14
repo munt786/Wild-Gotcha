@@ -58,12 +58,18 @@ export default function App() {
       // 1. Send captured frame to FastAPI / ONNX MobileNetV2 backend
       const res = await ApiService.identifySpecies(imageUri);
 
-      // 2. Reject non-wildlife captures (e.g. human face, selfie, clothes, room, objects)
+      // 2. Reject non-wildlife captures, rate limit, or offline status
       if (res.is_wildlife === false || !res.success) {
+        const title =
+          res.common_name === 'Connection Required' || res.common_name === 'No Network Connection'
+            ? 'Connection Required'
+            : res.common_name === 'Rate Limit Reached'
+            ? 'Rate Limit'
+            : 'No Wildlife Detected';
         setScanNotice({
-          title: 'No Wildlife Detected',
+          title,
           message: res.message || 'Please center a wild animal, bird, insect, or reptile in the viewfinder.',
-          type: 'warning',
+          type: res.common_name?.includes('Connection') ? 'error' : 'warning',
         });
         return;
       }

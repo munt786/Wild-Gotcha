@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { IdentifyResponse, ScanHistoryResponse, StatsResponse } from '../types';
 import { GeminiDirectService } from './geminiDirectService';
+import { LocalWildlifeEngine } from './localWildlifeEngine';
 
 // Default base URL:
 // - Physical Android APK on your Wi-Fi: 'http://10.115.56.35:8000'
@@ -163,31 +164,18 @@ export class ApiService {
         }
       }
 
-      // If network fails and direct AI is unavailable, return informative status
-      if (
-        error.name === 'AbortError' ||
-        (error.message && (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')))
-      ) {
-        return {
-          success: false,
-          is_wildlife: false,
-          message: `Cannot reach AI Backend at ${currentBaseUrl}. Ensure laptop has start_backend.bat running on the same Wi-Fi.`,
-          common_name: 'Server Unreachable',
-          scientific_name: 'Network Connection Required',
-          taxonomy_class: 'Other Wildlife',
-          category: 'Mammals',
-          breed: 'Wild Species',
-          confidence_score: 0,
-          rarity: 'Common',
-          habitat: 'Local Network',
-          region: 'Local Network',
-          fun_fact: 'Make sure your phone and laptop are connected to the same Wi-Fi network.',
-          danger_level: 'Harmless',
-          scanned_at: new Date().toISOString(),
-          persisted: false,
-          top_candidates: [],
-        };
+      // 3. Fallback: 100% Embedded On-Device Wildlife Engine
+      // If Google Gemini is rate-limited (HTTP 429 quota exceeded) or offline,
+      // and the local backend is unreachable, the APK resolves directly from its built-in
+      // 521+ authentic biological species & breeds database with zero network needed!
+      try {
+        console.log('Activating On-Device 521+ Species Wildlife Dex Engine...');
+        const localResult = await LocalWildlifeEngine.identify(imageUri);
+        return localResult;
+      } catch (localErr) {
+        console.error('Local wildlife engine fallback error:', localErr);
       }
+
       throw error;
     }
   }
