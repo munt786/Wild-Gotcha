@@ -33,6 +33,8 @@ export interface Specimen {
   breed?: string;
   rarity: RarityLevel;
   image_url: string;
+  sticker_url?: string;
+  box_2d?: [number, number, number, number];
   lore: string;
   biome: string;
   region: string;
@@ -52,6 +54,8 @@ export interface CatchRecord {
   breed?: string;
   rarity: RarityLevel;
   image_url: string;
+  sticker_url?: string;
+  box_2d?: [number, number, number, number];
   biome: string;
   region: string;
   danger_level: number;
@@ -72,6 +76,8 @@ export interface UserScan {
   latitude?: number;
   longitude?: number;
   image_preview_base64?: string;
+  sticker_url?: string;
+  box_2d?: [number, number, number, number];
   scanned_at: string;
 }
 
@@ -97,6 +103,8 @@ export interface IdentifyResponse {
   region?: string;
   fun_fact: string;
   danger_level: string;
+  box_2d?: [number, number, number, number];
+  sticker_uri?: string;
   top_candidates: PredictionCandidate[];
   scanned_at: string;
   persisted: boolean;
@@ -112,4 +120,12 @@ export interface StatsResponse {
   total_scans: number;
   unique_species: number;
   class_breakdown: Record<string, number>;
+}
+
+export interface PendingScan {
+  id: string;
+  image_uri: string;
+  captured_at: string;
+  latitude?: number;
+  longitude?: number;
 }

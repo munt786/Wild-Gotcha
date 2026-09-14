@@ -22,12 +22,22 @@ export interface ScannerViewHandle {
 }
 
 interface ScannerViewProps {
-  onCapture: (imageUri: string) => void;
+  onCapture: (imageUri: string, isFrontCamera?: boolean) => void;
   isAnalyzing: boolean;
+  isOfflineMode?: boolean;
+  onToggleOfflineMode?: () => void;
 }
 
 export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
-  ({ onCapture, isAnalyzing }, ref) => {
+  (
+    {
+      onCapture,
+      isAnalyzing,
+      isOfflineMode = false,
+      onToggleOfflineMode,
+    },
+    ref
+  ) => {
     const [permission, requestPermission] = useCameraPermissions();
     const [cameraRef, setCameraRef] = useState<any>(null);
 
@@ -252,7 +262,7 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
             shutterSound: false,
           });
           if (photo && photo.uri) {
-            onCapture(photo.uri);
+            onCapture(photo.uri, cameraFacing === 'front');
           }
         } catch (err: any) {
           Alert.alert('Camera Error', err.message || 'Failed to capture photo.');
@@ -271,7 +281,7 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
           quality: 0.8, // High fidelity, fast transfer
         });
         if (!res.canceled && res.assets && res.assets[0]) {
-          onCapture(res.assets[0].uri);
+          onCapture(res.assets[0].uri, false);
         }
       } catch (err: any) {
         Alert.alert('Gallery Error', err.message || 'Could not select photo.');
@@ -339,12 +349,33 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
           </TouchableOpacity>
 
           {/* Sensor & Mode Badge */}
-          <View style={styles.topSensorBadge}>
-            <View style={styles.greenLiveDot} />
-            <Text style={styles.topSensorBadgeText} numberOfLines={1}>
-              {cameraInfo}
-            </Text>
-          </View>
+          {onToggleOfflineMode ? (
+            <TouchableOpacity
+              style={[
+                styles.topSensorBadge,
+                isOfflineMode ? styles.topSensorBadgeOffline : styles.topSensorBadgeOnline,
+              ]}
+              onPress={onToggleOfflineMode}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.greenLiveDot,
+                  { backgroundColor: isOfflineMode ? '#F59E0B' : '#10B981' },
+                ]}
+              />
+              <Text style={styles.topSensorBadgeText} numberOfLines={1}>
+                {isOfflineMode ? 'Offline • Local AI' : 'Live AI • Tap for Offline'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.topSensorBadge}>
+              <View style={styles.greenLiveDot} />
+              <Text style={styles.topSensorBadgeText} numberOfLines={1}>
+                {cameraInfo}
+              </Text>
+            </View>
+          )}
 
           {/* Right Controls: Camera Flip (Mirror) & Gallery Button */}
           <View style={styles.topRightActions}>
@@ -407,9 +438,13 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
           <View style={styles.analyzingBackdrop}>
             <View style={styles.analyzingCard}>
               <ActivityIndicator size="large" color="#111111" />
-              <Text style={styles.analyzingTitle}>Cropping & Scanning Animal</Text>
+              <Text style={styles.analyzingTitle}>
+                {isOfflineMode ? 'Scanning with Local Wildlife Engine' : 'Cropping & Scanning Animal'}
+              </Text>
               <Text style={styles.analyzingSubtitle}>
-                OpenCV isolating viewfinder ROI for precision species classification...
+                {isOfflineMode
+                  ? 'Analyzing specimen against built-in 521+ species database...'
+                  : 'OpenCV isolating viewfinder ROI for precision species classification...'}
               </Text>
             </View>
           </View>
@@ -514,6 +549,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.18)',
     marginHorizontal: 8,
     maxWidth: width * 0.50,
+  },
+  topSensorBadgeOnline: {
+    borderColor: 'rgba(16, 185, 129, 0.5)',
+  },
+  topSensorBadgeOffline: {
+    borderColor: 'rgba(245, 158, 11, 0.65)',
+    backgroundColor: 'rgba(50, 35, 10, 0.85)',
   },
   greenLiveDot: {
     width: 6,

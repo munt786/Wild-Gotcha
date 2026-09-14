@@ -27,6 +27,9 @@ export default function App() {
   const [specimens, setSpecimens] = useState<Specimen[]>([]);
   const [catches, setCatches] = useState<CatchRecord[]>([]);
 
+  // Online (Gemini Cloud AI) vs Offline (On-Device Local Wildlife Engine) Mode
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
+
   // Scanner & Analysis State
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const scannerRef = useRef<ScannerViewHandle>(null);
@@ -49,27 +52,48 @@ export default function App() {
     }
   }, [scanNotice]);
 
+  // Toggle Online vs Offline Mode
+  const handleToggleOfflineMode = () => {
+    setIsOfflineMode((prev) => {
+      const next = !prev;
+      setScanNotice({
+        title: next ? '🟠 Offline Mode Active' : '🟢 Online Mode Active',
+        message: next
+          ? 'On-device Wildlife Dex active. Creatures will be identified locally using the built-in 521+ species database with zero internet.'
+          : 'Live Gemini Cloud AI restored. Universal species identification, coordinate localization, and stickers active.',
+        type: 'info',
+      });
+      return next;
+    });
+  };
+
   // Handle Photo Capture from Scanner: 100% AUTOMATED
-  const handlePhotoCaptured = async (imageUri: string) => {
+  const handlePhotoCaptured = async (imageUri: string, isFrontCamera: boolean = false) => {
     setIsAnalyzing(true);
     setScanNotice(null);
 
     try {
-      // 1. Send captured frame to FastAPI / ONNX MobileNetV2 backend
-      const res = await ApiService.identifySpecies(imageUri);
+      // 1. Identify species (On-Device local engine if offline, Gemini Cloud AI if online)
+      const res = await ApiService.identifySpecies(imageUri, {
+        forceOffline: isOfflineMode,
+        isFrontCamera,
+      });
 
-      // 2. Reject non-wildlife captures, rate limit, or offline status
+      // 2. Reject non-wildlife captures, rate limit, selfies, or invalid captures
       if (res.is_wildlife === false || !res.success) {
         const title =
-          res.common_name === 'Connection Required' || res.common_name === 'No Network Connection'
+          res.common_name?.includes('Selfie') || res.common_name?.includes('Human')
+            ? 'Selfie Detected 👤'
+            : res.common_name === 'Connection Required' || res.common_name === 'No Network Connection'
             ? 'Connection Required'
             : res.common_name === 'Rate Limit Reached'
             ? 'Rate Limit'
             : 'No Wildlife Detected';
+
         setScanNotice({
           title,
           message: res.message || 'Please center a wild animal, bird, insect, or reptile in the viewfinder.',
-          type: res.common_name?.includes('Connection') ? 'error' : 'warning',
+          type: 'warning',
         });
         return;
       }
@@ -185,18 +209,20 @@ export default function App() {
 
       // 4. Automated Danger Meter (1 to 5 pips: Green to Red)
       let mappedDanger = 1;
-      const dl = String(res.danger_level || '');
-      if (dl.includes('Venomous') || dl.includes('Dangerous')) mappedDanger = 5;
-      else if (dl.includes('Predatory')) mappedDanger = 4;
-      else if (dl.includes('Mild')) mappedDanger = 2;
+      const dl = String(res.danger_level || '').toLowerCase();
+      if (dl.includes('venom') || dl.includes('danger')) mappedDanger = 5;
+      else if (dl.includes('predator')) mappedDanger = 4;
+      else if (dl.includes('mild')) mappedDanger = 2;
+      else mappedDanger = 1; // Harmless = 1 pip (Green)
 
-      // 5. Automated Rarity Level
+      // 5. Automated Rarity Level (Based strictly on authentic biological rarity)
       let mappedRarity: RarityLevel = 'COMMON';
       const cleanRarity = String(res.rarity || '').toUpperCase();
-      if (cleanRarity === 'LEGENDARY') mappedRarity = 'LEGENDARY';
-      else if (cleanRarity === 'EPIC') mappedRarity = 'EPIC';
-      else if (cleanRarity === 'RARE' || res.confidence_score >= 0.94) mappedRarity = 'RARE';
-      else if (cleanRarity === 'UNCOMMON' || res.confidence_score >= 0.88) mappedRarity = 'UNCOMMON';
+      if (cleanRarity.includes('LEGENDARY')) mappedRarity = 'LEGENDARY';
+      else if (cleanRarity.includes('EPIC')) mappedRarity = 'EPIC';
+      else if (cleanRarity.includes('RARE')) mappedRarity = 'RARE';
+      else if (cleanRarity.includes('UNCOMMON')) mappedRarity = 'UNCOMMON';
+      else mappedRarity = 'COMMON';
 
       const now = new Date();
       const dateOnly = now.toLocaleDateString('en-US', {
@@ -228,6 +254,8 @@ export default function App() {
         breed: finalBreed,
         rarity: mappedRarity,
         image_url: imageUri,
+        sticker_url: res.sticker_uri || imageUri,
+        box_2d: res.box_2d,
         biome: res.habitat || 'Temperate Wilderness',
         region: authenticRegion,
         danger_level: mappedDanger,
@@ -250,6 +278,8 @@ export default function App() {
           ...existing,
           captured_count: existing.captured_count + 1,
           image_url: imageUri, // update with newest capture photo
+          sticker_url: res.sticker_uri || existing.sticker_url || imageUri,
+          box_2d: res.box_2d || existing.box_2d,
           region: authenticRegion,
           breed: finalBreed,
           category: finalCategory,
@@ -269,6 +299,8 @@ export default function App() {
           breed: finalBreed,
           rarity: mappedRarity,
           image_url: imageUri,
+          sticker_url: res.sticker_uri || imageUri,
+          box_2d: res.box_2d,
           lore: res.fun_fact || 'Remarkable wildlife creature cataloged in Gotcha! Lens.',
           biome: res.habitat || 'Temperate Wilderness',
           region: authenticRegion,
@@ -378,6 +410,8 @@ export default function App() {
         activeTab={activeTab}
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
+        isOfflineMode={isOfflineMode}
+        onToggleOfflineMode={handleToggleOfflineMode}
       />
 
       {/* 3. Main Content Views (Three Tabs) */}
@@ -397,6 +431,8 @@ export default function App() {
             ref={scannerRef}
             onCapture={handlePhotoCaptured}
             isAnalyzing={isAnalyzing}
+            isOfflineMode={isOfflineMode}
+            onToggleOfflineMode={handleToggleOfflineMode}
           />
         )}
 

@@ -28,6 +28,8 @@ export interface IdentifyOptions {
   latitude?: number;
   longitude?: number;
   userId?: string;
+  forceOffline?: boolean;
+  isFrontCamera?: boolean;
 }
 
 export class ApiService {
@@ -71,6 +73,35 @@ export class ApiService {
     imageUri: string,
     options: IdentifyOptions = {}
   ): Promise<IdentifyResponse> {
+    // 0. Front Camera Selfie Fast Rejection: Wild animals are not photographed with front selfies
+    if (options.isFrontCamera) {
+      return {
+        success: false,
+        is_wildlife: false,
+        message: 'Front camera selfie detected. WildGotcha is designed for wildlife discovery! Turn your camera around to scan creatures in the wild.',
+        common_name: 'Selfie / Human Detected',
+        scientific_name: 'Homo sapiens',
+        taxonomy_class: 'Other Wildlife',
+        category: 'Mammals',
+        breed: 'Human Explorer',
+        confidence_score: 0.99,
+        rarity: 'Common',
+        habitat: 'Urban / Domestic',
+        region: 'Global',
+        fun_fact: 'WildGotcha registers wildlife creatures and domestic animals. Switch to the back camera outdoors!',
+        danger_level: 'Harmless',
+        scanned_at: new Date().toISOString(),
+        persisted: false,
+        top_candidates: [],
+      };
+    }
+
+    // 1. Force Offline Mode: Run directly on-device using local 521+ species database
+    if (options.forceOffline) {
+      console.log('Force Offline Mode active: Classifying via On-Device LocalWildlifeEngine...');
+      return await LocalWildlifeEngine.identify(imageUri, { isFrontCamera: options.isFrontCamera });
+    }
+
     // 1. Standalone Direct Cloud AI: Instant scan without needing any local server!
     // When the APK is built with EAS, the key is already securely embedded.
     if (GeminiDirectService.isAvailable()) {

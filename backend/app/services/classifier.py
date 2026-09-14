@@ -136,8 +136,26 @@ class SpeciesClassifier:
                     "top_candidates": [],
                 }
 
-            # 2. Reject scenes where inanimate objects dominate or confidence is insufficient
-            if object_prob_sum > 0.58 or top_prob < 0.20 or animal_prob_sum < 0.30:
+            # 2. Strict rejection of spurious class 17 (jay) false positives from human selfies or clothing
+            if top_idx == 17 and top_prob < 0.42:
+                logger.info("Spurious class 17 (jay) low-confidence match rejected (prob: %.3f)", top_prob)
+                return {
+                    "is_wildlife": False,
+                    "success": False,
+                    "message": "No wildlife detected. (Spurious bird/room noise rejected). Center a wild animal, bird, insect, or reptile in the viewfinder.",
+                    "common_name": "No Wildlife",
+                    "scientific_name": "Non-wildlife",
+                    "taxonomy_class": TaxonomyClass.OTHER,
+                    "confidence_score": 0.0,
+                    "rarity": RarityTier.COMMON,
+                    "habitat": "Non-natural environment",
+                    "fun_fact": "Gotcha! Lens only registers living creatures and wildlife specimens.",
+                    "danger_level": DangerLevel.HARMLESS,
+                    "top_candidates": [],
+                }
+
+            # 3. Reject scenes where inanimate objects dominate or animal confidence is insufficient
+            if object_prob_sum > 0.48 or top_prob < 0.28 or animal_prob_sum < 0.38:
                 logger.info("Non-wildlife or low confidence scene: top %s (%.3f), object_prob_sum: %.3f", top_label, top_prob, object_prob_sum)
                 return {
                     "is_wildlife": False,

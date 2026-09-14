@@ -68,9 +68,9 @@ export const UniqueIndexGrid: React.FC<UniqueIndexGridProps> = ({
               {/* White Polaroid Inner Photo */}
               <View style={styles.photoFrame}>
                 <Image
-                  source={{ uri: item.image_url }}
+                  source={{ uri: item.sticker_url || item.image_url }}
                   style={styles.specimenImage}
-                  resizeMode="cover"
+                  resizeMode={item.sticker_url ? 'contain' : 'cover'}
                 />
               </View>
 

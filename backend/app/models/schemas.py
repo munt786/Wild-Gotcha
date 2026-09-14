@@ -64,6 +64,8 @@ class UserScan(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     image_preview_base64: Optional[str] = None
+    box_2d: Optional[List[int]] = None
+    sticker_url: Optional[str] = None
     scanned_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
@@ -92,6 +94,8 @@ class IdentifyResponse(BaseModel):
     region: str = "Global Distribution"
     fun_fact: str = ""
     danger_level: DangerLevel = DangerLevel.HARMLESS
+    box_2d: Optional[List[int]] = None
+    sticker_url: Optional[str] = None
     top_candidates: List[PredictionCandidate] = []
     scanned_at: datetime = Field(default_factory=datetime.utcnow)
     persisted: bool = False

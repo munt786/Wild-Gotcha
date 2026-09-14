@@ -18,18 +18,30 @@ SYSTEM_PROMPT = """You are an expert wildlife biologist, zoologist, and taxonomi
 Analyze the user's uploaded camera image with extreme biological accuracy.
 
 RULES:
-1. NON-WILDLIFE CHECK: If the image does NOT contain a living animal, bird, insect, reptile, fish, arachnid, or domestic breed (for example: if it is a laptop, electronic device, furniture, empty room, vehicle, or human face), you MUST set "is_wildlife": false and specify the detected object in "message".
-2. WILDLIFE IDENTIFICATION: If it IS a living creature, identify its exact common name, Latin binomial scientific name, and specific breed/subspecies if applicable.
-3. BIOGEOGRAPHICAL REGION: Provide the authentic native continent and country/realm of origin (e.g. "South & Southeast Asia", "Siberian Arctic • Worldwide Domestic", "Madagascar", "Australasia (Oceania)", "North America", "South & Central America (Amazon)").
-4. CATEGORY: Must be one of: "Mammals", "Birds", "Reptiles", "Amphibians", "Insects", "Arachnids", "Fish", "Other Wildlife".
-5. BREED: If it is a domestic breed (e.g. dog, cat, cattle, horse, poultry breed), specify the exact breed name (e.g. "Golden Retriever", "German Shepherd", "Persian Cat", "Holstein Friesian", "Leghorn Chicken"). If it is a wild animal, set "Wild Species".
-6. TAXONOMY CLASS: Must be one of: "Mammalia", "Insecta", "Reptilia", "Arachnida", or "Other Wildlife" (for birds, amphibians, fish).
-7. RARITY: Must be one of: "Common", "Uncommon", "Rare", "Epic", "Legendary".
-8. DANGER LEVEL: Must be one of: "Harmless", "Mild", "Venomous/Dangerous", "Predatory".
+1. CREATURE SEARCH & LOCALIZATION: Locate the primary animal, bird, insect, reptile, fish, arachnid, or domestic breed in the frame. Return its exact bounding box in "box_2d": [ymin, xmin, ymax, xmax] with coordinates normalized from 0 to 1000.
+2. NON-WILDLIFE CHECK: If the image does NOT contain a living animal, bird, insect, reptile, fish, arachnid, or domestic breed (for example: if it is a laptop, electronic device, furniture, empty room, vehicle, or human face), you MUST set "is_wildlife": false and specify the detected object in "message".
+3. WILDLIFE IDENTIFICATION: Focus classification strictly on the creature inside "box_2d" to eliminate background guessing. Identify its exact common name, Latin binomial scientific name, and specific breed/subspecies if applicable.
+4. BIOGEOGRAPHICAL REGION: Provide the authentic native continent and country/realm of origin (e.g. "South & Southeast Asia", "Siberian Arctic • Worldwide Domestic", "Madagascar", "Australasia (Oceania)", "North America", "South & Central America (Amazon)").
+5. CATEGORY: Must be one of: "Mammals", "Birds", "Reptiles", "Amphibians", "Insects", "Arachnids", "Fish", "Other Wildlife".
+6. BREED: If it is a domestic breed (e.g. dog, cat, cattle, horse, poultry breed), specify the exact breed name (e.g. "Golden Retriever", "German Shepherd", "Persian Cat", "Holstein Friesian", "Leghorn Chicken"). If it is a wild animal, set "Wild Species".
+7. TAXONOMY CLASS: Must be one of: "Mammalia", "Insecta", "Reptilia", "Arachnida", or "Other Wildlife" (for birds, amphibians, fish).
+8. RARITY: Based strictly on global population abundance and human encounter frequency:
+   - "Common": Abundant species found everywhere in human, urban, or domestic environments (e.g. housefly, mosquito, pigeon, sparrow, black ant, domestic pet).
+   - "Uncommon": Wild species found in specific natural habitats or seasons (e.g. red fox, monarch butterfly, kingfisher, tree frog, barn owl).
+   - "Rare": Elusive wild species with restricted geographic ranges (e.g. chameleon, tarantula, peregrine falcon, sea turtle).
+   - "Epic": Threatened or vulnerable species, or large wilderness apex predators (e.g. tiger, elephant, snow leopard, komodo dragon).
+   - "Legendary": Critically endangered species with tiny remaining populations on Earth (e.g. javan rhino, vaquita, amur leopard, pangolin).
+   Never classify abundant insects (like houseflies) or common birds as Rare.
+9. DANGER LEVEL: Based strictly on immediate physical injury, sting, or bite hazard to a human:
+   - "Harmless": Incapable of stinging or physically injuring a human; non-venomous (e.g. housefly, butterfly, moth, earthworm, pigeon, duck, rabbit). A housefly is strictly Harmless.
+   - "Mild": Minor nip, scratch, or mild sting if provoked (e.g. honeybee, red ant, garden spider, small crab).
+   - "Venomous/Dangerous": Medically significant venom or toxic sting (e.g. wasp swarm, scorpion, pit viper, cobra, black widow).
+   - "Predatory": Large apex predators capable of lethal attacks (e.g. lion, tiger, bear, crocodile, wolf).
 
 You must respond ONLY with valid, parseable JSON using this exact structure:
 {
   "is_wildlife": true,
+  "box_2d": [ymin, xmin, ymax, xmax],
   "common_name": "Species Common Name",
   "scientific_name": "Genus species",
   "taxonomy_class": "Mammalia | Insecta | Reptilia | Arachnida | Other Wildlife",
@@ -191,6 +203,17 @@ class GeminiVisionClassifier:
 
                 breed_val = parsed.get("breed") or ("Purebred Breed" if any(w in parsed.get("common_name", "").lower() for w in ["retriever", "shepherd", "husky", "terrier", "spaniel", "cat", "cattle", "horse"]) else "Wild Species")
 
+                raw_box = parsed.get("box_2d")
+                clean_box = None
+                if isinstance(raw_box, list) and len(raw_box) > 0:
+                    if isinstance(raw_box[0], list):
+                        raw_box = raw_box[0]
+                    if len(raw_box) == 4:
+                        try:
+                            clean_box = [int(v) for v in raw_box]
+                        except (ValueError, TypeError):
+                            clean_box = None
+
                 return {
                     "is_wildlife": is_wild,
                     "success": is_wild,
@@ -206,6 +229,7 @@ class GeminiVisionClassifier:
                     "region": parsed.get("region", "Global Distribution"),
                     "fun_fact": parsed.get("fun_fact", "Fascinating creature of nature."),
                     "danger_level": danger,
+                    "box_2d": clean_box,
                     "top_candidates": [],
                 }
 

@@ -35,12 +35,16 @@ interface HeaderProps {
   activeTab: ActiveTab;
   selectedCategory: TaxonomicCategory;
   onSelectCategory: (category: TaxonomicCategory) => void;
+  isOfflineMode?: boolean;
+  onToggleOfflineMode?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   selectedCategory,
   onSelectCategory,
+  isOfflineMode = false,
+  onToggleOfflineMode,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -75,6 +79,28 @@ export const Header: React.FC<HeaderProps> = ({
           <Text style={styles.layersIcon}>≘</Text>
           <Text style={styles.pillTextStatic}>Catches</Text>
         </View>
+      )}
+
+      {/* Online / Offline Mode Switch Pill (Top Right) */}
+      {onToggleOfflineMode && (
+        <TouchableOpacity
+          style={[
+            styles.modePill,
+            isOfflineMode ? styles.modePillOffline : styles.modePillOnline,
+          ]}
+          onPress={onToggleOfflineMode}
+          activeOpacity={0.85}
+        >
+          <View
+            style={[
+              styles.modeDot,
+              { backgroundColor: isOfflineMode ? '#F59E0B' : '#10B981' },
+            ]}
+          />
+          <Text style={styles.modePillText}>
+            {isOfflineMode ? 'Offline' : 'Online'}
+          </Text>
+        </TouchableOpacity>
       )}
 
       {/* Screenshot 2: 2-Column Floating Dropdown Card */}
@@ -168,6 +194,37 @@ const styles = StyleSheet.create({
     zIndex: 100,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modePill: {
+    position: 'absolute',
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    ...SHADOWS.soft,
+  },
+  modePillOnline: {
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  modePillOffline: {
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    backgroundColor: '#FFFBEB',
+  },
+  modeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 6,
+  },
+  modePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#111111',
   },
   topPill: {
     flexDirection: 'row',

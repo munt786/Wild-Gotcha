@@ -138,7 +138,25 @@ class ImageProcessor:
         chw_tensor = np.transpose(normalized, (2, 0, 1))
         return np.expand_dims(chw_tensor, axis=0)
 
-    def validate_and_preprocess(self, image_bytes: bytes) -> Tuple[np.ndarray, np.ndarray, str]:
+    def check_is_human_skin(self, cv_image: np.ndarray) -> bool:
+        """
+        Detects human skin presence using Kovac et al. chromaticity bounds.
+        Returns True if > 26% of center viewfinder contains human facial/body skin tones.
+        """
+        if cv_image is None or cv_image.size == 0:
+            return False
+        h, w = cv_image.shape[:2]
+        c_img = cv_image[int(h * 0.15):int(h * 0.85), int(w * 0.15):int(w * 0.85)]
+        if c_img.size == 0:
+            return False
+        b = c_img[:, :, 0].astype(int)
+        g = c_img[:, :, 1].astype(int)
+        r = c_img[:, :, 2].astype(int)
+        skin_mask = (r > 95) & (g > 40) & (b > 20) & (r > g) & (r > b) & (np.abs(r - g) > 15) & ((r - b) > 15)
+        ratio = np.sum(skin_mask) / float(c_img.shape[0] * c_img.shape[1])
+        return ratio > 0.26
+
+    def validate_and_preprocess(self, image_bytes: bytes) -> Tuple[np.ndarray, np.ndarray, str, bool]:
         """
         Executes complete OpenCV pipeline on raw uploaded image bytes.
 
@@ -147,6 +165,7 @@ class ImageProcessor:
               - subject_tensor: np.ndarray of shape (1, 3, 224, 224) (tightly cropped to creature)
               - full_tensor: np.ndarray of shape (1, 3, 224, 224) (balanced whole frame)
               - thumbnail_base64: str of JPEG compressed thumbnail data URI
+              - is_human: bool indicating whether human skin tone dominates the frame
         """
         if not image_bytes or len(image_bytes) == 0:
             raise HTTPException(
@@ -179,17 +198,20 @@ class ImageProcessor:
                 detail=f"Image resolution too small ({width}x{height}). Minimum required is 32x32.",
             )
 
-        # 3. Remove background and isolate creature foreground
+        # 3. Check for human face / selfie skin chromaticity
+        is_human = self.check_is_human_skin(cv_image)
+
+        # 4. Remove background and isolate creature foreground
         isolated_bgr, cropped_subject_bgr, fg_ratio = self.isolate_foreground_and_crop(cv_image)
 
-        # 4. Generate clean thumbnail of the isolated creature for Dex storage
+        # 5. Generate clean thumbnail of the isolated creature for Dex storage
         thumbnail_base64 = self._generate_thumbnail_base64(cropped_subject_bgr)
 
-        # 5. Build tensors: isolated creature crop + neutralized full view
+        # 6. Build tensors: isolated creature crop + neutralized full view
         subject_tensor = self._bgr_to_tensor(cropped_subject_bgr)
         full_tensor = self._bgr_to_tensor(isolated_bgr)
 
-        return subject_tensor, full_tensor, thumbnail_base64
+        return subject_tensor, full_tensor, thumbnail_base64, is_human
 
     def _generate_thumbnail_base64(self, cv_bgr_img: np.ndarray, max_dim: int = 150) -> str:
         """Compresses down to a compact JPEG data URI for MongoDB storage."""

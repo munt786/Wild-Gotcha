@@ -92,17 +92,35 @@ async def identify_species(
         )
 
     # 3. OpenCV Validation and Animal Subject Localization & Preprocessing
-    subject_tensor, full_tensor, thumbnail_b64 = image_processor.validate_and_preprocess(image_bytes)
+    subject_tensor, full_tensor, thumbnail_b64, is_human = image_processor.validate_and_preprocess(image_bytes)
 
     # 4. Global AI Classification Pipeline:
     # If Gemini Vision is configured, use it for universal global identification (lakhs of species & breeds)
     classification = None
     if gemini_vision_classifier.is_available():
-        logger.info("Running Gemini 1.5 Flash Vision classification across global species...")
+        logger.info("Running Gemini Flash Vision classification across global species...")
         classification = await gemini_vision_classifier.classify(image_bytes)
 
     # Seamless fallback to local MobileNetV2 + 398-species encyclopedia if Gemini is offline/unconfigured
     if not classification:
+        if is_human:
+            logger.info("Human or selfie detected by image processor. Rejecting scan.")
+            return IdentifyResponse(
+                success=False,
+                is_wildlife=False,
+                message="Human or selfie detected. Gotcha! Lens only registers living wildlife creatures, birds, insects, and domestic pets.",
+                common_name="Human / Selfie",
+                scientific_name="Homo sapiens",
+                taxonomy_class=TaxonomyClass.OTHER,
+                confidence_score=0.0,
+                rarity=RarityTier.COMMON,
+                habitat="Urban / Domestic",
+                fun_fact="WildGotcha is designed for wildlife discovery! Turn your camera outdoors to scan living creatures.",
+                danger_level=DangerLevel.HARMLESS,
+                scanned_at=datetime.utcnow(),
+                persisted=False,
+            )
+
         logger.info("Using local MobileNetV2 + authentic wildlife encyclopedia classification...")
         classification = species_classifier.classify(subject_tensor, full_tensor)
 

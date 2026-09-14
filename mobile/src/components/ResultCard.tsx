@@ -29,6 +29,10 @@ export const ResultCard: React.FC<ResultCardProps> = ({
 }) => {
   if (!result) return null;
 
+  const [viewMode, setViewMode] = React.useState<'sticker' | 'photo'>('sticker');
+  const hasSticker = Boolean(result.sticker_uri);
+  const activeImageUri = viewMode === 'sticker' && result.sticker_uri ? result.sticker_uri : imageUri;
+
   const taxColor = getTaxonomyColor(result.taxonomy_class);
   const rarityColor = getRarityColor(result.rarity);
   const confidencePercent = Math.round(result.confidence_score * 100);
@@ -58,13 +62,46 @@ export const ResultCard: React.FC<ResultCardProps> = ({
         >
           {/* Main Creature Card */}
           <View style={[styles.mainCard, { borderColor: taxColor }]}>
+            {/* Sticker vs Full Photo Switcher */}
+            {hasSticker && (
+              <View style={styles.stickerToggleBar}>
+                <TouchableOpacity
+                  style={[styles.stickerToggleBtn, viewMode === 'sticker' && styles.stickerToggleBtnActive]}
+                  onPress={() => setViewMode('sticker')}
+                >
+                  <Text style={[styles.stickerToggleText, viewMode === 'sticker' && styles.stickerToggleTextActive]}>
+                    ✨ Specimen Sticker
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.stickerToggleBtn, viewMode === 'photo' && styles.stickerToggleBtnActive]}
+                  onPress={() => setViewMode('photo')}
+                >
+                  <Text style={[styles.stickerToggleText, viewMode === 'photo' && styles.stickerToggleTextActive]}>
+                    📷 Full Camera Photo
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Image Preview */}
-            <View style={styles.imageContainer}>
-              {imageUri ? (
+            <View
+              style={[
+                styles.imageContainer,
+                viewMode === 'sticker' && hasSticker && [
+                  styles.stickerFrame,
+                  { shadowColor: rarityColor, borderColor: '#FFFFFF' },
+                ],
+              ]}
+            >
+              {activeImageUri ? (
                 <Image
-                  source={{ uri: imageUri }}
-                  style={styles.subjectImage}
-                  resizeMode="cover"
+                  source={{ uri: activeImageUri }}
+                  style={[
+                    styles.subjectImage,
+                    viewMode === 'sticker' && hasSticker && styles.stickerSubjectImage,
+                  ]}
+                  resizeMode={viewMode === 'sticker' && hasSticker ? 'contain' : 'cover'}
                 />
               ) : (
                 <View style={styles.noImagePlaceholder}>
@@ -81,6 +118,12 @@ export const ResultCard: React.FC<ResultCardProps> = ({
               <View style={styles.dangerPill}>
                 <Text style={styles.dangerText}>{result.danger_level}</Text>
               </View>
+
+              {viewMode === 'sticker' && hasSticker && (
+                <View style={styles.stickerBadgePill}>
+                  <Text style={styles.stickerBadgeText}>🏷️ CLEAN STICKER</Text>
+                </View>
+              )}
             </View>
 
             {/* Species Identification Info */}
@@ -383,5 +426,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1.0,
+  },
+  stickerToggleBar: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surfaceLight,
+    borderRadius: 12,
+    margin: 12,
+    marginBottom: 8,
+    padding: 3,
+  },
+  stickerToggleBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: 9,
+  },
+  stickerToggleBtnActive: {
+    backgroundColor: COLORS.surface,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  stickerToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  stickerToggleTextActive: {
+    color: COLORS.textPrimary,
+  },
+  stickerFrame: {
+    backgroundColor: '#0B1120',
+    borderWidth: 3.5,
+    borderRadius: 16,
+    marginHorizontal: 12,
+    marginTop: 4,
+    overflow: 'hidden',
+    shadowOpacity: 0.75,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  stickerSubjectImage: {
+    borderRadius: 12,
+  },
+  stickerBadgePill: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  stickerBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });
