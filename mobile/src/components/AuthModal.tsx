@@ -11,7 +11,6 @@ import {
   ScrollView,
   Dimensions,
   Platform,
-  Linking,
 } from 'react-native';
 import { UserProfile, CloudSyncStatus, CatchRecord } from '../types';
 import { SupabaseService } from '../services/supabaseService';
@@ -47,8 +46,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpToken, setOtpToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<{ text: string; isError: boolean } | null>(null);
 
@@ -104,29 +101,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return;
       }
 
-      const res = await SupabaseService.requestSignUpOtp(
+      const res = await SupabaseService.signUp(
         email.trim(),
         password.trim(),
         displayName.trim()
       );
       setLoading(false);
-      if (res.success) {
-        if (res.user) {
-          onUserChange(res.user);
-          setNotice({ text: '🎉 Welcome to WildGotcha! Account created.', isError: false });
-          setTimeout(() => onClose(), 1200);
-          return;
-        }
-        if (res.autoVerified) {
-          setAuthMode('signin');
-          setPassword('');
-          setNotice({ text: '🎉 Account created! Please sign in with your password.', isError: false });
-        } else {
-          setOtpToken('');
-          setShowOtpModal(true);
-        }
+      if (res.user) {
+        onUserChange(res.user);
+        setNotice({ text: '🎉 Welcome to WildGotcha! Account created.', isError: false });
+        setTimeout(() => onClose(), 1200);
       } else {
-        setNotice({ text: res.error || 'Failed to dispatch verification code.', isError: true });
+        setNotice({ text: res.error || 'Failed to create account.', isError: true });
       }
     } else {
       const res = await SupabaseService.signIn(email.trim(), password.trim());
@@ -137,64 +123,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onUserChange(res.user);
         setNotice({ text: 'Welcome back! Signed in successfully.', isError: false });
         setTimeout(() => onClose(), 1200);
-      }
-    }
-  };
-
-  const handleVerifySignUpOtp = async () => {
-    if (!otpToken.trim() || otpToken.trim().length < 6) {
-      setNotice({ text: 'Please enter the 6-digit verification code.', isError: true });
-      return;
-    }
-    setLoading(true);
-    setNotice(null);
-    const res = await SupabaseService.verifySignUpOtp(email.trim(), otpToken.trim());
-    setLoading(false);
-    if (res.success) {
-      setShowOtpModal(false);
-      setPassword('');
-      setOtpToken('');
-      setAuthMode('signin');
-      setNotice({
-        text: '🎉 Account verified and created! Please sign in with your password.',
-        isError: false,
-      });
-    } else {
-      setNotice({
-        text: res.error || 'Invalid or expired verification code.',
-        isError: true,
-      });
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setNotice(null);
-    setLoading(true);
-    const res = await SupabaseService.signInWithGoogle();
-    if (res.error) {
-      setLoading(false);
-      setNotice({ text: res.error, isError: true });
-    } else if (res.url) {
-      try {
-        const testRes = await fetch(res.url);
-        if (testRes.status === 400) {
-          const data = await testRes.json().catch(() => ({}));
-          if (data.msg && data.msg.includes('Unsupported provider')) {
-            setLoading(false);
-            setNotice({
-              text: 'Google Sign-In is currently unavailable. Please sign in with your email and password.',
-              isError: true,
-            });
-            return;
-          }
-        }
-      } catch (_) {}
-
-      setLoading(false);
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.href = res.url;
-      } else {
-        await Linking.openURL(res.url);
       }
     }
   };
@@ -352,45 +280,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
 
                 {/* Switch between Sign In and Create Account */}
-                {!showOtpModal && (
-                  <View style={styles.tabCapsule}>
-                    <TouchableOpacity
-                      style={[styles.tabBtn, authMode === 'signin' && styles.tabBtnActive]}
-                      onPress={() => {
-                        setAuthMode('signin');
-                        setNotice(null);
-                      }}
-                      activeOpacity={0.8}
+                <View style={styles.tabCapsule}>
+                  <TouchableOpacity
+                    style={[styles.tabBtn, authMode === 'signin' && styles.tabBtnActive]}
+                    onPress={() => {
+                      setAuthMode('signin');
+                      setNotice(null);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.tabBtnText,
+                        authMode === 'signin' && styles.tabBtnTextActive,
+                      ]}
                     >
-                      <Text
-                        style={[
-                          styles.tabBtnText,
-                          authMode === 'signin' && styles.tabBtnTextActive,
-                        ]}
-                      >
-                        Sign In
-                      </Text>
-                    </TouchableOpacity>
+                      Sign In
+                    </Text>
+                  </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.tabBtn, authMode === 'signup' && styles.tabBtnActive]}
-                      onPress={() => {
-                        setAuthMode('signup');
-                        setNotice(null);
-                      }}
-                      activeOpacity={0.8}
+                  <TouchableOpacity
+                    style={[styles.tabBtn, authMode === 'signup' && styles.tabBtnActive]}
+                    onPress={() => {
+                      setAuthMode('signup');
+                      setNotice(null);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.tabBtnText,
+                        authMode === 'signup' && styles.tabBtnTextActive,
+                      ]}
                     >
-                      <Text
-                        style={[
-                          styles.tabBtnText,
-                          authMode === 'signup' && styles.tabBtnTextActive,
-                        ]}
-                      >
-                        Create
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                      Create
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
                 {notice && (
                   <View
@@ -410,136 +336,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </View>
                 )}
 
-                {showOtpModal ? (
-                  /* OTP Verification Form */
-                  <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 4 }}>
-                      Verify Your Email
-                    </Text>
-                    <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center', marginBottom: 12 }}>
-                      A 6-digit verification code was sent to:{'\n'}
-                      <Text style={{ fontWeight: '700', color: '#059669' }}>{email}</Text>
-                    </Text>
-
-                    <View style={[styles.inputGroup, { width: '100%' }]}>
-                      <Text style={styles.inputLabel}>6-Digit Verification Code</Text>
+                {/* Email / Password Form */}
+                <View>
+                  {authMode === 'signup' && (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Name</Text>
                       <TextInput
-                        style={[styles.textInput, { letterSpacing: 6, fontWeight: '800', textAlign: 'center', fontSize: 20 }]}
-                        placeholder="••••••"
+                        style={styles.textInput}
+                        placeholder="Name"
                         placeholderTextColor="#999"
-                        value={otpToken}
-                        onChangeText={(t) => setOtpToken(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        autoCapitalize="none"
-                        autoFocus={true}
-                        editable={!loading}
+                        value={displayName}
+                        onChangeText={setDisplayName}
+                        autoCapitalize="words"
                       />
                     </View>
+                  )}
 
-                    <TouchableOpacity
-                      style={[styles.primaryAuthBtn, { width: '100%' }]}
-                      onPress={handleVerifySignUpOtp}
-                      disabled={loading}
-                      activeOpacity={0.85}
-                    >
-                      {loading ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
-                      ) : (
-                        <Text style={styles.primaryAuthBtnText}>Verify & Create Account</Text>
-                      )}
-                    </TouchableOpacity>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Email</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Email"
+                      placeholderTextColor="#999"
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
 
-                    <TouchableOpacity
-                      onPress={() => {
-                        setShowOtpModal(false);
-                        setOtpToken('');
-                        setNotice(null);
-                      }}
-                      style={{ marginTop: 12, padding: 6 }}
-                    >
-                      <Text style={{ fontSize: 12, color: '#6B7280', textDecorationLine: 'underline' }}>
-                        Cancel & Change Details
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Password</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Password"
+                      placeholderTextColor="#999"
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry={true}
+                    />
+                  </View>
+
+                  {/* Submit Email Button */}
+                  <TouchableOpacity
+                    style={styles.primaryAuthBtn}
+                    onPress={handleEmailAuth}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Text style={styles.primaryAuthBtnText}>
+                        {authMode === 'signin' ? 'Sign In with Email' : 'Create Account'}
                       </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  /* Password-based Form */
-                  <View>
-                    {authMode === 'signup' && (
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Name</Text>
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="Name"
-                          placeholderTextColor="#999"
-                          value={displayName}
-                          onChangeText={setDisplayName}
-                          autoCapitalize="words"
-                        />
-                      </View>
                     )}
-
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Email</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder="Email"
-                        placeholderTextColor="#999"
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                      />
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Password</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder="Password"
-                        placeholderTextColor="#999"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry={true}
-                      />
-                    </View>
-
-                    {/* Submit Email Button */}
-                    <TouchableOpacity
-                      style={styles.primaryAuthBtn}
-                      onPress={handleEmailAuth}
-                      disabled={loading}
-                      activeOpacity={0.85}
-                    >
-                      {loading ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
-                      ) : (
-                        <Text style={styles.primaryAuthBtnText}>
-                          {authMode === 'signin' ? 'Sign In with Email' : 'Create Account'}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Divider */}
-                <View style={styles.dividerRow}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>OR</Text>
-                  <View style={styles.dividerLine} />
+                  </TouchableOpacity>
                 </View>
-
-                {/* Google Sign In Button */}
-                <TouchableOpacity
-                  style={styles.googleBtn}
-                  onPress={handleGoogleSignIn}
-                  disabled={loading}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.googleIcon}>G</Text>
-                  <Text style={styles.googleBtnText}>Continue with Google</Text>
-                </TouchableOpacity>
 
                 {/* Guest Mode */}
                 {!user && (

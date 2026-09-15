@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,6 @@ import {
   Platform,
   SafeAreaView,
   StatusBar,
-  Modal,
-  Linking,
 } from 'react-native';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { UserProfile } from '../types';
@@ -35,13 +33,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, statusMe
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(statusMessage || null);
-
-  // OTP Verification Modal State
-  const [otpModalVisible, setOtpModalVisible] = useState(false);
-  const [otpToken, setOtpToken] = useState('');
-  const [otpSubmitting, setOtpSubmitting] = useState(false);
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const otpInputRef = useRef<TextInput>(null);
 
   const validateEmail = (emailStr: string): boolean => {
     return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailStr.trim());
@@ -85,12 +76,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, statusMe
       if (res.user) {
         onLoginSuccess(res.user);
       } else {
-        if (res.error && res.error.toLowerCase().includes('email not confirmed')) {
-          setOtpError('Your account has not been verified yet. Please enter the 6-digit code sent to your email.');
-          setOtpToken('');
-          setOtpModalVisible(true);
-          return;
-        }
         setErrorMsg(res.error || 'Sign in failed. Check your email and password.');
       }
     } catch (err: any) {
@@ -131,121 +116,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, statusMe
 
     setLoading(true);
     try {
-      const res = await SupabaseService.requestSignUpOtp(
+      const res = await SupabaseService.signUp(
         email.trim(),
         password,
         displayName.trim()
       );
-      if (res.success) {
-        if (res.user) {
-          onLoginSuccess(res.user);
-          return;
-        }
-        if (res.autoVerified) {
-          // Email confirmation was disabled in Supabase, so account is ready!
-          setPassword('');
-          setConfirmPassword('');
-          setTab('signin');
-          setInfoMsg('🎉 Account created successfully! Please sign in with your password.');
-        } else {
-          setOtpToken('');
-          setOtpError(null);
-          setOtpModalVisible(true);
-        }
+      if (res.user) {
+        onLoginSuccess(res.user);
       } else {
-        setErrorMsg(res.error || 'Failed to dispatch verification code. Please try again.');
+        setErrorMsg(res.error || 'Failed to create account. Please try again.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'An unexpected error occurred during sign up.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifySignUpOtp = async () => {
-    const cleanOtp = otpToken.trim();
-    if (!cleanOtp || cleanOtp.length < 6) {
-      setOtpError('Please enter the full 6-digit verification code sent to your email.');
-      return;
-    }
-
-    setOtpSubmitting(true);
-    setOtpError(null);
-    try {
-      const res = await SupabaseService.verifySignUpOtp(email.trim(), cleanOtp);
-      if (res.success) {
-        setOtpModalVisible(false);
-        // Clear passwords so user can sign in freshly
-        setPassword('');
-        setConfirmPassword('');
-        setOtpToken('');
-        setTab('signin');
-        setInfoMsg('🎉 Account verified and created successfully! Please sign in with your password.');
-      } else {
-        setOtpError(res.error || 'Invalid verification code. Please check and try again.');
-      }
-    } catch (err: any) {
-      setOtpError(err.message || 'Verification failed. Please try again.');
-    } finally {
-      setOtpSubmitting(false);
-    }
-  };
-
-  const handleResendSignUpOtp = async () => {
-    setOtpSubmitting(true);
-    setOtpError(null);
-    try {
-      const res = await SupabaseService.requestSignUpOtp(
-        email.trim(),
-        password,
-        displayName.trim()
-      );
-      if (res.success) {
-        setInfoMsg(`A new verification code was dispatched to ${email.trim()}.`);
-      } else {
-        setOtpError(res.error || 'Failed to resend verification code.');
-      }
-    } catch (err: any) {
-      setOtpError(err.message || 'Could not resend verification code.');
-    } finally {
-      setOtpSubmitting(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    resetForm();
-    setLoading(true);
-    try {
-      const res = await SupabaseService.signInWithGoogle();
-      if (res.url) {
-        // Pre-check if Google Provider is enabled in Supabase to prevent navigating to a raw 400 error page
-        try {
-          const testRes = await fetch(res.url);
-          if (testRes.status === 400) {
-            const data = await testRes.json().catch(() => ({}));
-            if (data.msg && data.msg.includes('Unsupported provider')) {
-              setErrorMsg('Google Sign-In is currently unavailable. Please sign in with your email and password.');
-              setLoading(false);
-              return;
-            }
-          }
-        } catch (_) {
-          // If preflight fails due to CORS, proceed with standard navigation
-        }
-
-        if (Platform.OS === 'web' && typeof window !== 'undefined') {
-          window.location.href = res.url;
-        } else {
-          await Linking.openURL(res.url);
-        }
-      } else {
-        setErrorMsg(
-          res.error ||
-            'Real Google OAuth connects through your Supabase project. Add your Supabase keys to mobile/.env.local.'
-        );
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Google sign in error.');
     } finally {
       setLoading(false);
     }
@@ -424,24 +306,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, statusMe
                 </Text>
               )}
             </TouchableOpacity>
-
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR CONTINUE WITH</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Google OAuth Button */}
-            <TouchableOpacity
-              style={[styles.googleButton, loading && styles.buttonDisabled]}
-              onPress={handleGoogleLogin}
-              disabled={loading}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.googleIconText}>🌐</Text>
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Guest / Offline Mode Option */}
@@ -472,119 +336,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, statusMe
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* OTP Verification Modal */}
-      <Modal
-        visible={otpModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setOtpModalVisible(false)}
-        onShow={() => {
-          setTimeout(() => otpInputRef.current?.focus(), 120);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.otpModalCard}>
-            <View style={styles.otpHeaderIcon}>
-              <Text style={{ fontSize: 28 }}>📬</Text>
-            </View>
-
-            <Text style={styles.otpModalTitle}>Enter Verification Code</Text>
-            <Text style={styles.otpModalSubtitle}>
-              We sent a 6-digit verification code to:
-            </Text>
-            <Text style={styles.otpEmailHighlight}>{email}</Text>
-
-            {otpError && (
-              <View style={styles.otpErrorBox}>
-                <Text style={styles.otpErrorText}>⚠️ {otpError}</Text>
-              </View>
-            )}
-
-            {/* 6 Individual Digit Segmented Boxes */}
-            <TouchableOpacity
-              activeOpacity={1}
-              style={styles.otpBoxesWrapper}
-              onPress={() => otpInputRef.current?.focus()}
-            >
-              {[0, 1, 2, 3, 4, 5].map((idx) => {
-                const char = otpToken[idx] || '';
-                const isCurrent = otpToken.length === idx;
-                const isFilled = Boolean(char);
-                return (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.otpBox,
-                      isFilled && styles.otpBoxFilled,
-                      isCurrent && styles.otpBoxActive,
-                    ]}
-                  >
-                    <Text style={styles.otpBoxText}>{char}</Text>
-                  </View>
-                );
-              })}
-
-              {/* Transparent Overlay Input for Native Keyboard & Web Keystrokes */}
-              <TextInput
-                ref={otpInputRef}
-                style={styles.otpHiddenInput}
-                value={otpToken}
-                onChangeText={(t) => {
-                  const cleaned = t.replace(/[^0-9]/g, '').slice(0, 6);
-                  setOtpToken(cleaned);
-                  if (cleaned.length > 0) {
-                    setOtpError(null);
-                  }
-                }}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus={true}
-                caretHidden={true}
-                editable={!otpSubmitting}
-              />
-            </TouchableOpacity>
-
-            {/* Full-width High-Contrast Verify Button */}
-            <TouchableOpacity
-              style={[
-                styles.otpVerifyButton,
-                (otpToken.length < 6 || otpSubmitting) && styles.otpVerifyButtonDisabled,
-              ]}
-              onPress={handleVerifySignUpOtp}
-              disabled={otpSubmitting || otpToken.length < 6}
-              activeOpacity={0.88}
-            >
-              {otpSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.otpVerifyButtonText}>Verify & Create Account</Text>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.otpFooterActions}>
-              <TouchableOpacity
-                onPress={handleResendSignUpOtp}
-                disabled={otpSubmitting}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.resendText}>🔄 Resend Code</Text>
-              </TouchableOpacity>
-              <Text style={styles.footerSeparator}>•</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setOtpModalVisible(false);
-                  setOtpToken('');
-                  setOtpError(null);
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };

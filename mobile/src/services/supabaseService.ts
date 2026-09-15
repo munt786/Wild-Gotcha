@@ -192,6 +192,20 @@ export class SupabaseService {
       if (error) return { user: null, error: error.message };
 
       const u = data.user;
+
+      // Detect duplicate user in Supabase: Supabase returns identities: [] and sends no email
+      if (
+        u &&
+        Array.isArray(u.identities) &&
+        u.identities.length === 0
+      ) {
+        return {
+          user: null,
+          error:
+            'An account with this email is already registered. Please sign in with your password.',
+        };
+      }
+
       // If email confirmation is enabled in Supabase, session is null until user clicks link in inbox
       if (u && !data.session && !(u as any).email_confirmed_at) {
         return {
