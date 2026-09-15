@@ -145,7 +145,7 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
                   ) : null}
                   <View style={[styles.expPillBadge, { borderColor: rarityColor }]}>
                     <Text style={[styles.expPillText, { color: rarityColor }]}>
-                      ⭐ +{((EXP_TABLE as Record<string, number>)[(specimen.rarity || 'COMMON').toUpperCase()] || 50)} EXP (+{EXP_TABLE.UNIQUE_DISCOVERY_BONUS} Dex Bonus)
+                      ⭐ +{((EXP_TABLE as Record<string, number>)[(specimen.rarity || 'COMMON').toUpperCase()] || 50)} EXP
                     </Text>
                   </View>
                 </View>

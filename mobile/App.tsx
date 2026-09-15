@@ -501,14 +501,11 @@ export default function App() {
       const nextProgression = ProgressionService.getProgression(updatedCatches, updatedSpecimens);
 
       if (nextProgression.level > prevProgression.level) {
-        const bonusBreakdown = reward.uniqueBonus > 0
-          ? ` (+${reward.totalExpEarned} EXP: ${reward.baseExp} Base + ${reward.uniqueBonus} Discovery Bonus)`
-          : ` (+${reward.totalExpEarned} EXP earned)`;
         setScanNotice({
           title: `🎉 LEVEL UP! Level ${nextProgression.level}`,
           message: nextProgression.rankNumber > prevProgression.rankNumber
-            ? `New Rank Achieved: ${nextProgression.rankBadgeEmoji} ${nextProgression.rankTitle}!${bonusBreakdown}`
-            : `You advanced to Level ${nextProgression.level}!${bonusBreakdown}`,
+            ? `New Rank Achieved: ${nextProgression.rankBadgeEmoji} ${nextProgression.rankTitle}! (+${reward.totalExpEarned} EXP)`
+            : `You advanced to Level ${nextProgression.level}! (+${reward.totalExpEarned} EXP earned)`,
           type: 'info',
         });
       } else if (reward.isRepeat) {
@@ -523,7 +520,7 @@ export default function App() {
             ? `✨ New Dex Entry! +${reward.totalExpEarned} EXP`
             : `🐾 New Breed Variant! +${reward.totalExpEarned} EXP`,
           message: isNewSpecies
-            ? `Discovered ${res.common_name} (${mappedRarity})! +${reward.baseExp} Base + ${reward.uniqueBonus} Discovery Bonus. Progress: ${nextProgression.currentLevelExp}/${nextProgression.expToNextLevel} EXP.`
+            ? `Discovered ${res.common_name} (${mappedRarity})! Progress: ${nextProgression.currentLevelExp}/${nextProgression.expToNextLevel} EXP.`
             : `Cataloged new ${res.common_name} variant (${finalBreed}). Progress: ${nextProgression.currentLevelExp}/${nextProgression.expToNextLevel} EXP.`,
           type: 'info',
         });
