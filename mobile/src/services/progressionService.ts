@@ -10,16 +10,33 @@ export interface RankDefinition {
 }
 
 export const RANKS: RankDefinition[] = [
-  { rankNumber: 1, minLevel: 1, maxLevel: 10, title: 'Novice Naturalist', badgeEmoji: '🥉', badgeColor: '#CD7F32' },
-  { rankNumber: 2, minLevel: 11, maxLevel: 20, title: 'Field Scout', badgeEmoji: '🥈', badgeColor: '#9CA3AF' },
-  { rankNumber: 3, minLevel: 21, maxLevel: 30, title: 'Wilderness Ranger', badgeEmoji: '🥇', badgeColor: '#F59E0B' },
-  { rankNumber: 4, minLevel: 31, maxLevel: 40, title: 'Wildlife Explorer', badgeEmoji: '🧭', badgeColor: '#10B981' },
-  { rankNumber: 5, minLevel: 41, maxLevel: 50, title: 'Veteran Tracker', badgeEmoji: '🌿', badgeColor: '#059669' },
-  { rankNumber: 6, minLevel: 51, maxLevel: 60, title: 'Expert Zoologist', badgeEmoji: '🔬', badgeColor: '#3B82F6' },
-  { rankNumber: 7, minLevel: 61, maxLevel: 70, title: 'Master Biologist', badgeEmoji: '🦅', badgeColor: '#6366F1' },
-  { rankNumber: 8, minLevel: 71, maxLevel: 80, title: 'Apex Ecologist', badgeEmoji: '🐆', badgeColor: '#8B5CF6' },
-  { rankNumber: 9, minLevel: 81, maxLevel: 90, title: 'Mythic Scholar', badgeEmoji: '🌟', badgeColor: '#EC4899' },
-  { rankNumber: 10, minLevel: 91, maxLevel: 100, title: 'Grandmaster Dex Sovereign', badgeEmoji: '👑', badgeColor: '#F59E0B' },
+  { rankNumber: 1, minLevel: 1, maxLevel: 10, title: 'Novice Scout', badgeEmoji: '🥉', badgeColor: '#CD7F32' },
+  { rankNumber: 2, minLevel: 11, maxLevel: 20, title: 'Field Explorer', badgeEmoji: '🥈', badgeColor: '#9CA3AF' },
+  { rankNumber: 3, minLevel: 21, maxLevel: 30, title: 'Wild Tracker', badgeEmoji: '🥇', badgeColor: '#F59E0B' },
+  { rankNumber: 4, minLevel: 31, maxLevel: 40, title: 'Habitat Specialist', badgeEmoji: '🧭', badgeColor: '#10B981' },
+  { rankNumber: 5, minLevel: 41, maxLevel: 50, title: 'Bio-Researcher', badgeEmoji: '🌿', badgeColor: '#059669' },
+  { rankNumber: 6, minLevel: 51, maxLevel: 60, title: 'Elite Ranger', badgeEmoji: '🔬', badgeColor: '#3B82F6' },
+  { rankNumber: 7, minLevel: 61, maxLevel: 70, title: 'Apex Naturalist', badgeEmoji: '🦅', badgeColor: '#6366F1' },
+  { rankNumber: 8, minLevel: 71, maxLevel: 80, title: 'Wildlife Master', badgeEmoji: '🐆', badgeColor: '#8B5CF6' },
+  { rankNumber: 9, minLevel: 81, maxLevel: 90, title: 'Mythic Warden', badgeEmoji: '🌟', badgeColor: '#EC4899' },
+  { rankNumber: 10, minLevel: 91, maxLevel: 100, title: 'Grand Overseer', badgeEmoji: '👑', badgeColor: '#F59E0B' },
+];
+
+/**
+ * Array of EXP needed to advance from level index (0-indexed: index 0 is Lv 1->2).
+ * Cumulative total for Level 100 is exactly 1,000,000 EXP.
+ */
+export const LEVEL_EXP_REQUIREMENTS: number[] = [
+  100, 100, 110, 130, 150, 180, 210, 250, 300, 350,
+  410, 480, 550, 630, 710, 800, 900, 1000, 1110, 1220,
+  1340, 1470, 1600, 1740, 1890, 2040, 2200, 2370, 2540, 2710,
+  2900, 3090, 3280, 3480, 3690, 3910, 4130, 4360, 4590, 4830,
+  5070, 5320, 5580, 5850, 6120, 6390, 6680, 6970, 7260, 7560,
+  7870, 8180, 8500, 8830, 9160, 9500, 9850, 10200, 10560, 10920,
+  11290, 11670, 12050, 12440, 12830, 13230, 13640, 14050, 14470, 14900,
+  15330, 15770, 16210, 16660, 17120, 17580, 18050, 18530, 19010, 19500,
+  19990, 20490, 21000, 21510, 22030, 22560, 23090, 23630, 24170, 24720,
+  25280, 25840, 26410, 26980, 27560, 28150, 28740, 29340, 29960,
 ];
 
 export const EXP_TABLE = {
@@ -48,10 +65,12 @@ export interface LevelInfo {
 export class ProgressionService {
   /**
    * EXP required to go from `level` to `level + 1`.
-   * Scales progressively from 100 EXP (Lv 1) up to 6,040 EXP (Lv 99).
+   * Sum of all requirements from Lv 1 to 99 equals exactly 1,000,000 EXP (Lv 100 cap).
    */
   static expRequiredForLevel(level: number): number {
-    return 100 + (level - 1) * 60;
+    if (level < 1) return LEVEL_EXP_REQUIREMENTS[0];
+    if (level >= 100) return 0;
+    return LEVEL_EXP_REQUIREMENTS[level - 1] ?? LEVEL_EXP_REQUIREMENTS[LEVEL_EXP_REQUIREMENTS.length - 1];
   }
 
   /**
