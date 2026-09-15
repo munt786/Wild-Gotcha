@@ -12,9 +12,10 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import { UserProfile, CloudSyncStatus, CatchRecord } from '../types';
+import { UserProfile, CloudSyncStatus, CatchRecord, Specimen } from '../types';
 import { SupabaseService } from '../services/supabaseService';
 import { StorageService } from '../services/storageService';
+import { ProgressionService } from '../services/progressionService';
 import { COLORS, SHADOWS } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
@@ -26,6 +27,8 @@ interface AuthModalProps {
   onUserChange: (user: UserProfile | null) => void;
   catchesCount: number;
   uniqueCount: number;
+  catches?: CatchRecord[];
+  specimens?: Specimen[];
   onTriggerSync?: () => void;
   syncStatus?: CloudSyncStatus;
   onAccountDeleted?: () => void;
@@ -38,10 +41,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onUserChange,
   catchesCount,
   uniqueCount,
+  catches = [],
+  specimens = [],
   onTriggerSync,
   syncStatus = 'offline_saved',
   onAccountDeleted,
 }) => {
+  const progression = ProgressionService.getProgression(catches, specimens);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -191,10 +197,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <Text style={styles.profileName}>{user.displayName}</Text>
                 <Text style={styles.profileEmail}>{user.email}</Text>
 
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankText}>
-                    Level {Math.max(1, Math.floor(uniqueCount / 3) + 1)} • {user.rankTitle}
+                <View style={[styles.rankBadge, { borderColor: progression.rankBadgeColor }]}>
+                  <Text style={[styles.rankText, { color: progression.rankBadgeColor }]}>
+                    {progression.rankBadgeEmoji} Rank {progression.rankNumber}: {progression.rankTitle}
                   </Text>
+                </View>
+
+                {/* Level & EXP Progress Card */}
+                <View style={styles.expCard}>
+                  <View style={styles.expHeaderRow}>
+                    <View style={styles.levelTag}>
+                      <Text style={styles.levelTagText}>LVL {progression.level}</Text>
+                    </View>
+                    <Text style={styles.expRatioText}>
+                      {progression.isMaxLevel
+                        ? 'MAX LEVEL 100'
+                        : `${progression.currentLevelExp.toLocaleString()} / ${progression.expToNextLevel.toLocaleString()} EXP (${progression.progressPercent}%)`}
+                    </Text>
+                  </View>
+                  <View style={styles.expTrack}>
+                    <View
+                      style={[
+                        styles.expFill,
+                        {
+                          width: `${progression.progressPercent}%`,
+                          backgroundColor: progression.rankBadgeColor,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.expFooterRow}>
+                    <Text style={styles.tierText}>{progression.rankTierRange}</Text>
+                    <Text style={styles.totalExpText}>
+                      ⭐ {progression.totalExp.toLocaleString()} Total EXP
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Stats Grid */}
@@ -206,6 +243,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <View style={styles.statBox}>
                     <Text style={styles.statNumber}>{uniqueCount}</Text>
                     <Text style={styles.statLabel}>Unique Dex</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statNumber}>{progression.level}</Text>
+                    <Text style={styles.statLabel}>Level</Text>
                   </View>
                 </View>
 
@@ -259,8 +300,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {user?.isGuest && (
                   <View style={styles.guestBanner}>
                     <Text style={styles.guestBannerTitle}>Currently Playing as Guest</Text>
+                    <View style={[styles.rankBadge, { borderColor: progression.rankBadgeColor, marginVertical: 8 }]}>
+                      <Text style={[styles.rankText, { color: progression.rankBadgeColor }]}>
+                        {progression.rankBadgeEmoji} Level {progression.level} • Rank {progression.rankNumber}: {progression.rankTitle}
+                      </Text>
+                    </View>
                     <Text style={styles.guestBannerSubtitle}>
-                      Sign in or create an account to back up your {catchesCount} catch{catchesCount === 1 ? '' : 'es'} to the cloud.
+                      ⭐ {progression.totalExp.toLocaleString()} Total EXP ({catchesCount} catches, {uniqueCount} unique species).
                     </Text>
                     <TouchableOpacity
                       style={styles.exitGuestBtn}
@@ -558,6 +604,65 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#047857',
+  },
+  expCard: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  expHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  levelTag: {
+    backgroundColor: '#091217',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  levelTagText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  expRatioText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  expTrack: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  expFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  expFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  tierText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  totalExpText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
   },
   statsRow: {
     flexDirection: 'row',

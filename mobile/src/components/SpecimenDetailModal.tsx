@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Specimen } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { EXP_TABLE } from '../services/progressionService';
 
 const { width } = Dimensions.get('window');
 
@@ -142,6 +143,11 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
                       <Text style={styles.breedBadgeText}>{specimen.breed}</Text>
                     </View>
                   ) : null}
+                  <View style={[styles.expPillBadge, { borderColor: rarityColor }]}>
+                    <Text style={[styles.expPillText, { color: rarityColor }]}>
+                      ⭐ +{EXP_TABLE[(specimen.rarity || 'COMMON').toUpperCase() as keyof typeof EXP_TABLE] || 50} EXP
+                    </Text>
+                  </View>
                 </View>
 
                 <Text style={styles.commonName}>{specimen.common_name}</Text>
@@ -396,6 +402,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#4338CA',
+  },
+  expPillBadge: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 3.5,
+    paddingHorizontal: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  expPillText: {
+    fontSize: 10.5,
+    fontWeight: '900',
   },
   commonName: {
     fontSize: 22,

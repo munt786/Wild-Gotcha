@@ -38,6 +38,7 @@ interface HeaderProps {
   isOfflineMode?: boolean;
   onToggleOfflineMode?: () => void;
   user?: UserProfile | null;
+  playerLevel?: number;
   onOpenAuth?: () => void;
 }
 
@@ -48,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
   isOfflineMode = false,
   onToggleOfflineMode,
   user,
+  playerLevel = 1,
   onOpenAuth,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -101,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {user && !user.isGuest ? '👤' : '🐾'}
               </Text>
               <Text style={styles.profilePillText} numberOfLines={1}>
-                {user && !user.isGuest ? user.displayName.split(' ')[0] : 'Guest'}
+                {`Lv.${playerLevel} • ${user && !user.isGuest ? user.displayName.split(' ')[0] : 'Guest'}`}
               </Text>
             </TouchableOpacity>
           )}

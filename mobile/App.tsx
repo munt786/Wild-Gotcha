@@ -23,6 +23,7 @@ import { AuthScreen } from './src/components/AuthScreen';
 import { ApiService } from './src/services/api';
 import { StorageService } from './src/services/storageService';
 import { SupabaseService } from './src/services/supabaseService';
+import { ProgressionService } from './src/services/progressionService';
 
 export default function App() {
   // Navigation & Category State
@@ -487,7 +488,33 @@ export default function App() {
         });
       }
 
-      // 8. Directly open Encyclopedia Specimen Details Modal!
+      // 8. Calculate EXP reward & check for Level Up
+      const prevProgression = ProgressionService.getProgression(catches, specimens);
+      const isNewUnique = existingIdx < 0;
+      const reward = ProgressionService.calculateCatchReward(mappedRarity, isNewUnique);
+      const nextProgression = ProgressionService.getProgression(updatedCatches, updatedSpecimens);
+
+      if (nextProgression.level > prevProgression.level) {
+        setScanNotice({
+          title: `🎉 LEVEL UP! Level ${nextProgression.level}`,
+          message: nextProgression.rankNumber > prevProgression.rankNumber
+            ? `New Rank Achieved: ${nextProgression.rankBadgeEmoji} ${nextProgression.rankTitle}! (+${reward.totalExpEarned} EXP)`
+            : `You advanced to Level ${nextProgression.level}! (+${reward.totalExpEarned} EXP earned)`,
+          type: 'info',
+        });
+      } else {
+        setScanNotice({
+          title: isNewUnique
+            ? `✨ New Dex Entry! +${reward.totalExpEarned} EXP`
+            : `🎯 Catch Recorded! +${reward.totalExpEarned} EXP`,
+          message: isNewUnique
+            ? `Discovered ${res.common_name} (${mappedRarity})! +${reward.uniqueBonus} Unique Bonus.`
+            : `Cataloged ${res.common_name} (${mappedRarity}). Progress: ${nextProgression.currentLevelExp}/${nextProgression.expToNextLevel} EXP.`,
+          type: 'info',
+        });
+      }
+
+      // 9. Directly open Encyclopedia Specimen Details Modal!
       setSelectedDetailSpecimen(targetSpecimen);
       setDetailModalVisible(true);
 
@@ -610,6 +637,7 @@ export default function App() {
         isOfflineMode={isOfflineMode}
         onToggleOfflineMode={handleToggleOfflineMode}
         user={user}
+        playerLevel={ProgressionService.getProgression(catches, specimens).level}
         onOpenAuth={() => setAuthModalVisible(true)}
       />
 
@@ -669,6 +697,8 @@ export default function App() {
         onAccountDeleted={handleAccountDeleted}
         catchesCount={catches.length}
         uniqueCount={specimens.length}
+        catches={catches}
+        specimens={specimens}
         onTriggerSync={handleTriggerSync}
         syncStatus={syncStatus}
       />
