@@ -504,8 +504,10 @@ export default function App() {
         setScanNotice({
           title: `🎉 LEVEL UP! Level ${nextProgression.level}`,
           message: nextProgression.rankNumber > prevProgression.rankNumber
-            ? `New Rank Achieved: ${nextProgression.rankBadgeEmoji} ${nextProgression.rankTitle}! (+${reward.totalExpEarned} EXP)`
-            : `You advanced to Level ${nextProgression.level}! (+${reward.totalExpEarned} EXP earned)`,
+            ? `${nextProgression.rankBadgeEmoji} ${nextProgression.rankTitle} Achieved!`
+            : nextProgression.isMaxLevel
+              ? 'Reached Maximum Level 100!'
+              : `Progress: ${nextProgression.currentLevelExp}/${nextProgression.expToNextLevel} EXP`,
           type: 'info',
         });
       } else if (reward.isRepeat) {
