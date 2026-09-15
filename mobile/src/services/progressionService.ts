@@ -45,7 +45,7 @@ export const EXP_TABLE = {
   RARE: 250,
   EPIC: 500,
   LEGENDARY: 1000,
-  UNIQUE_DISCOVERY_BONUS: 300,
+  UNIQUE_DISCOVERY_BONUS: 100,
 } as const;
 
 export interface LevelInfo {
@@ -75,7 +75,7 @@ export class ProgressionService {
 
   /**
    * Calculates reward for a single catch.
-   * - Brand-new species: Base Rarity EXP + Unique Dex Discovery Bonus.
+   * - Brand-new species: Base Rarity EXP + Unique Dex Discovery Bonus (+100 EXP).
    * - New breed of existing species: Base Rarity EXP.
    * - Repeated catch of identical species & breed: 0 EXP.
    */
@@ -110,7 +110,7 @@ export class ProgressionService {
    * Only the first catch of each distinct (species + breed) awards EXP.
    * Repeated catches of the identical breed award 0 EXP.
    */
-  static calculateTotalExp(catches: CatchRecord[], specimens: Specimen[]): number {
+  static calculateTotalExp(catches: CatchRecord[], specimens?: Specimen[]): number {
     let total = 0;
     const seenSpeciesBreeds = new Set<string>();
 
@@ -125,7 +125,9 @@ export class ProgressionService {
     }
 
     // Add bonus for every unique species registered in Dex
-    total += specimens.length * EXP_TABLE.UNIQUE_DISCOVERY_BONUS;
+    if (specimens && specimens.length > 0) {
+      total += specimens.length * EXP_TABLE.UNIQUE_DISCOVERY_BONUS;
+    }
     return total;
   }
 
