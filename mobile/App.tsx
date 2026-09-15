@@ -490,8 +490,14 @@ export default function App() {
 
       // 8. Calculate EXP reward & check for Level Up
       const prevProgression = ProgressionService.getProgression(catches, specimens);
-      const isNewUnique = existingIdx < 0;
-      const reward = ProgressionService.calculateCatchReward(mappedRarity, isNewUnique);
+      const isNewSpecies = existingIdx < 0;
+      const isAlreadyCaughtSameBreed = catches.some(
+        (c) =>
+          c.common_name.toLowerCase() === res.common_name.toLowerCase() &&
+          (c.breed || '').toLowerCase() === finalBreed.toLowerCase()
+      );
+      const isNewBreed = !isAlreadyCaughtSameBreed;
+      const reward = ProgressionService.calculateCatchReward(mappedRarity, isNewSpecies, isNewBreed);
       const nextProgression = ProgressionService.getProgression(updatedCatches, updatedSpecimens);
 
       if (nextProgression.level > prevProgression.level) {
@@ -502,14 +508,20 @@ export default function App() {
             : `You advanced to Level ${nextProgression.level}! (+${reward.totalExpEarned} EXP earned)`,
           type: 'info',
         });
+      } else if (reward.isRepeat) {
+        setScanNotice({
+          title: '🔄 Repeat Capture (0 EXP)',
+          message: `Already cataloged ${res.common_name}${finalBreed && finalBreed !== 'Wild Species' ? ` (${finalBreed})` : ''}. Only new species or different breeds grant EXP!`,
+          type: 'info',
+        });
       } else {
         setScanNotice({
-          title: isNewUnique
+          title: isNewSpecies
             ? `✨ New Dex Entry! +${reward.totalExpEarned} EXP`
-            : `🎯 Catch Recorded! +${reward.totalExpEarned} EXP`,
-          message: isNewUnique
+            : `🐾 New Breed Variant! +${reward.totalExpEarned} EXP`,
+          message: isNewSpecies
             ? `Discovered ${res.common_name} (${mappedRarity})! +${reward.uniqueBonus} Unique Bonus.`
-            : `Cataloged ${res.common_name} (${mappedRarity}). Progress: ${nextProgression.currentLevelExp}/${nextProgression.expToNextLevel} EXP.`,
+            : `Cataloged new ${res.common_name} variant (${finalBreed}). Progress: ${nextProgression.currentLevelExp}/${nextProgression.expToNextLevel} EXP.`,
           type: 'info',
         });
       }

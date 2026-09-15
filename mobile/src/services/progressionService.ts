@@ -55,33 +55,56 @@ export class ProgressionService {
   }
 
   /**
-   * Calculates reward for a single catch based on authentic rarity
-   * and whether this creature is a brand-new unique Dex discovery.
+   * Calculates reward for a single catch.
+   * - Brand-new species: Base Rarity EXP + Unique Dex Discovery Bonus.
+   * - New breed of existing species: Base Rarity EXP.
+   * - Repeated catch of identical species & breed: 0 EXP.
    */
   static calculateCatchReward(
     rarity: RarityLevel,
-    isNewUnique: boolean
-  ): { baseExp: number; uniqueBonus: number; totalExpEarned: number } {
+    isNewSpecies: boolean,
+    isNewBreed: boolean
+  ): { baseExp: number; uniqueBonus: number; totalExpEarned: number; isRepeat: boolean } {
+    if (!isNewSpecies && !isNewBreed) {
+      // Repeat capture of identical species & breed gives 0 EXP
+      return {
+        baseExp: 0,
+        uniqueBonus: 0,
+        totalExpEarned: 0,
+        isRepeat: true,
+      };
+    }
+
     const cleanRarity = (rarity || 'COMMON').toUpperCase() as RarityLevel;
     const baseExp = EXP_TABLE[cleanRarity] || EXP_TABLE.COMMON;
-    const uniqueBonus = isNewUnique ? EXP_TABLE.UNIQUE_DISCOVERY_BONUS : 0;
+    const uniqueBonus = isNewSpecies ? EXP_TABLE.UNIQUE_DISCOVERY_BONUS : 0;
     return {
       baseExp,
       uniqueBonus,
       totalExpEarned: baseExp + uniqueBonus,
+      isRepeat: false,
     };
   }
 
   /**
-   * Reconstructs deterministic Total EXP from player's entire collection
-   * (all catches + unique species discovery bonuses).
+   * Reconstructs deterministic Total EXP from player's collection.
+   * Only the first catch of each distinct (species + breed) awards EXP.
+   * Repeated catches of the identical breed award 0 EXP.
    */
   static calculateTotalExp(catches: CatchRecord[], specimens: Specimen[]): number {
     let total = 0;
+    const seenSpeciesBreeds = new Set<string>();
+
     for (const c of catches) {
-      const cleanRarity = (c.rarity || 'COMMON').toUpperCase() as RarityLevel;
-      total += EXP_TABLE[cleanRarity] || EXP_TABLE.COMMON;
+      const key = `${(c.common_name || '').trim().toLowerCase()}___${(c.breed || '').trim().toLowerCase()}`;
+      if (!seenSpeciesBreeds.has(key)) {
+        seenSpeciesBreeds.add(key);
+        const cleanRarity = (c.rarity || 'COMMON').toUpperCase() as RarityLevel;
+        total += EXP_TABLE[cleanRarity] || EXP_TABLE.COMMON;
+      }
+      // Identical repeat captures give 0 EXP
     }
+
     // Add bonus for every unique species registered in Dex
     total += specimens.length * EXP_TABLE.UNIQUE_DISCOVERY_BONUS;
     return total;
