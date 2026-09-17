@@ -97,7 +97,6 @@ const styles = StyleSheet.create({
   },
   inventoryCount: {
     fontSize: 12,
-    fontWeight: '700',
     color: COLORS.textMuted,
     letterSpacing: 0.2,
     fontFamily: FONTS.brandBold,
@@ -134,20 +133,17 @@ const styles = StyleSheet.create({
   },
   catalogId: {
     fontSize: 9,
-    fontWeight: '800',
     color: COLORS.textMuted,
     fontFamily: FONTS.tech,
   },
   catchName: {
     fontSize: 10,
-    fontWeight: '700',
     color: COLORS.textPrimary,
     marginTop: 1,
     fontFamily: FONTS.brandBold,
   },
   catchDate: {
     fontSize: 9,
-    fontWeight: '600',
     color: COLORS.textLight,
     marginTop: 2,
     fontFamily: FONTS.numbers,

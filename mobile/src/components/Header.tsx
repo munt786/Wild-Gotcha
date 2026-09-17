@@ -256,7 +256,6 @@ const styles = StyleSheet.create({
   },
   categoryPillText: {
     fontSize: 14,
-    fontWeight: '800',
     color: '#111111',
     letterSpacing: -0.2,
     fontFamily: FONTS.brandBold,
@@ -298,7 +297,6 @@ const styles = StyleSheet.create({
   },
   navSegmentLabelActive: {
     fontSize: 13,
-    fontWeight: '800',
     color: '#111111',
     letterSpacing: -0.2,
     fontFamily: FONTS.brandBold,
@@ -368,13 +366,11 @@ const styles = StyleSheet.create({
   },
   chipLabel: {
     fontSize: 12.5,
-    fontWeight: '700',
     color: COLORS.textPrimary,
     fontFamily: FONTS.brandRegular,
   },
   chipLabelActive: {
     color: '#FFFFFF',
-    fontWeight: '800',
     fontFamily: FONTS.brandBold,
   },
 });

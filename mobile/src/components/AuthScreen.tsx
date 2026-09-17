@@ -14,6 +14,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { FONTS } from '../theme/fonts';
 import { UserProfile } from '../types';
 import { SupabaseService } from '../services/supabaseService';
 import { StorageService } from '../services/storageService';
@@ -375,10 +376,10 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     fontSize: 26,
-    fontWeight: '900',
     color: '#111111',
     letterSpacing: 1.5,
     marginBottom: 4,
+    fontFamily: FONTS.brandBold,
   },
   brandTagline: {
     fontSize: 13,
@@ -397,8 +398,8 @@ const styles = StyleSheet.create({
   },
   isolatedBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
     color: '#059669',
+    fontFamily: FONTS.brandBold,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -421,12 +422,12 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 13.5,
-    fontWeight: '700',
     color: '#6B7280',
+    fontFamily: FONTS.brandRegular,
   },
   tabTextActive: {
     color: '#111111',
-    fontWeight: '800',
+    fontFamily: FONTS.brandBold,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -544,8 +545,8 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 14.5,
-    fontWeight: '800',
     letterSpacing: 0.4,
+    fontFamily: FONTS.brandBold,
   },
   buttonDisabled: {
     opacity: 0.6,

@@ -1,5 +1,26 @@
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import './apolloFontWeb';
+
+// On Android, specifying numeric or bold `fontWeight` alongside custom fonts causes React Native's
+// ReactFontManager to search for a non-existent weight file (e.g. Apollo_800.ttf) and fall back to system Roboto.
+// Apollo is inherently bold and futuristic. Removing fontWeight for Apollo on Android guarantees
+// Android renders the authentic Apollo typeface everywhere without falling back.
+if (Platform.OS === 'android') {
+  const originalCreate = StyleSheet.create;
+  (StyleSheet as any).create = function <T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(styles: T): T {
+    if (styles && typeof styles === 'object') {
+      for (const key of Object.keys(styles)) {
+        const item = (styles as any)[key];
+        if (item && typeof item === 'object' && item.fontFamily && typeof item.fontFamily === 'string') {
+          if (item.fontFamily.toLowerCase().includes('apollo')) {
+            delete item.fontWeight;
+          }
+        }
+      }
+    }
+    return originalCreate(styles);
+  };
+}
 
 export const FONTS = {
   // Apollo - Complete Modern Futuristic Typeface with full 0-9 digits, uppercase, lowercase, and symbols.

@@ -132,14 +132,12 @@ const styles = StyleSheet.create({
   },
   catalogId: {
     fontSize: 9,
-    fontWeight: '800',
     color: COLORS.textMuted,
     letterSpacing: 0.5,
     fontFamily: FONTS.tech,
   },
   commonName: {
     fontSize: 10,
-    fontWeight: '700',
     color: COLORS.textPrimary,
     textAlign: 'center',
     marginTop: 1,

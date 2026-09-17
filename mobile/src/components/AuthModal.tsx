@@ -17,6 +17,7 @@ import { SupabaseService } from '../services/supabaseService';
 import { StorageService } from '../services/storageService';
 import { ProgressionService } from '../services/progressionService';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { FONTS } from '../theme/fonts';
 
 const { width } = Dimensions.get('window');
 
@@ -535,9 +536,9 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '900',
     color: '#111111',
     letterSpacing: -0.3,
+    fontFamily: FONTS.brandBold,
   },
   modalSubtitle: {
     fontSize: 12,
@@ -583,8 +584,8 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: 18,
-    fontWeight: '900',
     color: '#111111',
+    fontFamily: FONTS.brandBold,
   },
   profileEmail: {
     fontSize: 12,
@@ -602,8 +603,8 @@ const styles = StyleSheet.create({
   },
   rankText: {
     fontSize: 11,
-    fontWeight: '800',
     color: '#047857',
+    fontFamily: FONTS.brandBold,
   },
   expCard: {
     width: '100%',
@@ -682,8 +683,8 @@ const styles = StyleSheet.create({
   },
   statNumber: {
     fontSize: 22,
-    fontWeight: '900',
     color: '#111111',
+    fontFamily: FONTS.numbers,
   },
   statLabel: {
     fontSize: 11,
@@ -713,8 +714,8 @@ const styles = StyleSheet.create({
   },
   syncStatusTitle: {
     fontSize: 13,
-    fontWeight: '800',
     color: '#065F46',
+    fontFamily: FONTS.brandBold,
   },
   syncStatusSubtitle: {
     fontSize: 11,
@@ -732,7 +733,7 @@ const styles = StyleSheet.create({
   syncActionBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '800',
+    fontFamily: FONTS.brandBold,
   },
   signOutBtn: {
     paddingVertical: 12,

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
 import {
   CheckCircle2,
@@ -76,8 +77,12 @@ function deriveSpecimensFromCatches(
 export default function App() {
   const [fontsLoaded] = useFonts({
     'Apollo': require('./assets/fonts/APOLLO.otf'),
+    'Apollo-Regular': require('./assets/fonts/APOLLO.otf'),
     'Apollo-Bold': require('./assets/fonts/APOLLO.otf'),
     'Apollo-Italic': require('./assets/fonts/APOLLOItalic.otf'),
+    'APOLLO': require('./assets/fonts/APOLLO.otf'),
+    'APOLLO-Regular': require('./assets/fonts/APOLLO.otf'),
+    'APOLLOItalic': require('./assets/fonts/APOLLOItalic.otf'),
   });
 
   // Navigation & Category State
@@ -91,6 +96,7 @@ export default function App() {
   // User Authentication & Cloud Sync State
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authChecked, setAuthChecked] = useState<boolean>(false);
+  const [isAppReady, setIsAppReady] = useState<boolean>(false);
   const [authModalVisible, setAuthModalVisible] = useState<boolean>(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>('offline_saved');
@@ -277,6 +283,31 @@ export default function App() {
       linkSub.remove();
     };
   }, []);
+
+  // Smooth transition guard: ensures fonts are completely decoded before revealing UI
+  // Completely prevents any split-second flash of default system fonts on cold start or browser refresh
+  React.useEffect(() => {
+    if (fontsLoaded && authChecked) {
+      let active = true;
+      const prepareApp = async () => {
+        try {
+          if (Platform.OS === 'web' && typeof document !== 'undefined' && (document as any).fonts) {
+            await (document as any).fonts.ready;
+          }
+          // Smooth 400ms buffer: allows custom fonts to rasterize and layouts to settle
+          await new Promise((resolve) => setTimeout(resolve, 400));
+        } catch (_) {
+          // fallback gracefully
+        } finally {
+          if (active) setIsAppReady(true);
+        }
+      };
+      prepareApp();
+      return () => {
+        active = false;
+      };
+    }
+  }, [fontsLoaded, authChecked]);
 
   React.useEffect(() => {
     if (scanNotice) {
@@ -778,12 +809,19 @@ export default function App() {
     }
   };
 
-  // 1. Splash / Session Restoration Screen & Font Preloading
-  if (!authChecked || !fontsLoaded) {
+  // 1. Seamless Splash Screen while preloading fonts and restoring session
+  // Matches native splash background (#091217) and icon for an uninterrupted loading experience
+  if (!isAppReady) {
     return (
-      <SafeAreaView style={[styles.appShell, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={{ flex: 1, backgroundColor: '#091217', justifyContent: 'center', alignItems: 'center' }}>
+        <StatusBar barStyle="light-content" backgroundColor="#091217" />
+        <Image
+          source={require('./assets/splash-icon.png')}
+          style={{ width: 130, height: 130, marginBottom: 28 }}
+          resizeMode="contain"
+        />
         <ActivityIndicator size="large" color="#10B981" />
-      </SafeAreaView>
+      </View>
     );
   }
 
