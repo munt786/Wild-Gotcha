@@ -8,7 +8,11 @@ import {
   ScrollView,
   Switch,
   Pressable,
+  Dimensions,
+  Platform,
 } from 'react-native';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 import {
   Check,
   ChevronRight,
@@ -305,8 +309,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    maxHeight: '85%',
+    height: Platform.OS === 'web' ? '85%' : Math.min(SCREEN_HEIGHT * 0.85, 720),
+    maxHeight: '92%',
+    minHeight: 420,
     paddingTop: 10,
+    overflow: 'hidden',
   },
   topBar: {
     alignItems: 'center',

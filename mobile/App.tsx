@@ -76,6 +76,7 @@ function deriveSpecimensFromCatches(
 export default function App() {
   const [fontsLoaded] = useFonts({
     'Apollo': require('./assets/fonts/APOLLO.otf'),
+    'Apollo-Bold': require('./assets/fonts/APOLLO.otf'),
     'Apollo-Italic': require('./assets/fonts/APOLLOItalic.otf'),
   });
 

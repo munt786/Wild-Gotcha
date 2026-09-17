@@ -50,7 +50,18 @@
         }
       ],
       "expo-asset",
-      "expo-font"
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/APOLLO.otf",
+            "./assets/fonts/APOLLOItalic.otf"
+          ]
+        }
+      ]
+    ],
+    "assetBundlePatterns": [
+      "**/*"
     ],
     "extra": {
       "eas": {
