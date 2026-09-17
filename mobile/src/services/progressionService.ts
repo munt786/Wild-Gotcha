@@ -45,6 +45,7 @@ export const EXP_TABLE = {
   RARE: 250,
   EPIC: 500,
   LEGENDARY: 1000,
+  SECRET: 2000,
   UNIQUE_DISCOVERY_BONUS: 100,
 } as const;
 

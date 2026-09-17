@@ -36,12 +36,13 @@ export const COLORS = {
   laserLine: '#10B981',
   laserGlow: 'rgba(16, 185, 129, 0.35)',
 
-  // Rarity Tiers: Common, Uncommon, Rare, Epic, Legendary
+  // Rarity Tiers: Common, Uncommon, Rare, Epic, Legendary, Secret
   rarityCommon: '#888888',
   rarityUncommon: '#3B82F6',
   rarityRare: '#8B5CF6',
   rarityEpic: '#D946EF',
   rarityLegendary: '#F59E0B',
+  raritySecret: '#EC4899',
 
   // Danger Pip Meter (1 to 5: Green to Red)
   dangerPip1: '#10B981', // Green

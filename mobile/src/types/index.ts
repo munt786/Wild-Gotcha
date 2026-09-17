@@ -18,11 +18,11 @@ export type TaxonomyClass =
   | 'Arachnida'
   | 'Other Wildlife';
 
-export type RarityLevel = 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
-export type RarityTier = 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary';
+export type RarityLevel = 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'LEGENDARY' | 'SECRET';
+export type RarityTier = 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary' | 'Secret';
 export type DangerLevel = 'Harmless' | 'Mild' | 'Venomous/Dangerous' | 'Predatory';
 
-export type ActiveTab = 'INDEX' | 'SCANNER' | 'CATCHES';
+export type ActiveTab = 'INDEX' | 'SCANNER' | 'CATCHES' | 'PROFILE';
 
 export interface Specimen {
   id: string;
@@ -136,6 +136,7 @@ export interface UserProfile {
   id: string;
   email?: string;
   displayName: string;
+  handle?: string;
   avatarUrl?: string;
   isGuest: boolean;
   level: number;

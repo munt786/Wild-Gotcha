@@ -1,11 +1,11 @@
 import React from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import { LayoutGrid, Camera, Layers } from 'lucide-react-native';
 import { ActiveTab } from '../types';
 import { SHADOWS } from '../theme/colors';
 
@@ -20,64 +20,66 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   activeTab,
   onSelectTab,
   onCenterPress,
-  isAnalyzing,
+  isAnalyzing = false,
 }) => {
+  const isScanner = activeTab === 'SCANNER';
+  const isDex = activeTab === 'INDEX';
+  const isCollection = activeTab === 'CATCHES' || activeTab === 'PROFILE';
+
   return (
     <View style={styles.floatingNavContainer}>
       <View style={styles.buttonsRow}>
-        {/* Left Floating Circular Button (⊞ Index Grid) */}
-        <TouchableOpacity
-          style={[
-            styles.sideCircleBtn,
-            activeTab === 'INDEX' && styles.sideCircleBtnActive,
-          ]}
-          onPress={() => onSelectTab('INDEX')}
-          activeOpacity={0.8}
-        >
-          {/* 4-square Grid Icon */}
-          <View style={styles.gridIconBox}>
-            <View style={[styles.gridSquare, activeTab === 'INDEX' && styles.gridSquareActive]} />
-            <View style={[styles.gridSquare, activeTab === 'INDEX' && styles.gridSquareActive]} />
-            <View style={[styles.gridSquare, activeTab === 'INDEX' && styles.gridSquareActive]} />
-            <View style={[styles.gridSquare, activeTab === 'INDEX' && styles.gridSquareActive]} />
-          </View>
-        </TouchableOpacity>
+        {/* Left Floating Circular Button: Dex / Category Grid (hidden on camera) */}
+        {!isScanner && (
+          <TouchableOpacity
+            style={[
+              styles.sideCircleBtn,
+              isDex && styles.sideCircleBtnActive,
+            ]}
+            onPress={() => onSelectTab('INDEX')}
+            activeOpacity={0.8}
+          >
+            <LayoutGrid
+              size={22}
+              color={isDex ? '#111111' : '#9CA3AF'}
+            />
+          </TouchableOpacity>
+        )}
 
-        {/* Center Floating Circular Button (📷 Large Black Camera Shutter) */}
+        {/* Center Floating Circular Button: Camera / Shutter */}
         <TouchableOpacity
           style={[
             styles.centerShutterBtn,
+            isScanner && styles.centerShutterBtnOnCamera,
             isAnalyzing && styles.centerShutterDisabled,
           ]}
           onPress={onCenterPress}
-          activeOpacity={0.88}
+          activeOpacity={0.85}
           disabled={isAnalyzing}
         >
-          {/* Custom Clean White Camera Icon */}
-          <View style={styles.cameraIconWrapper}>
-            <View style={styles.cameraNotch} />
-            <View style={styles.cameraBody}>
-              <View style={styles.cameraLens} />
-            </View>
-          </View>
+          {isScanner ? (
+            <View style={styles.innerShutterCircle} />
+          ) : (
+            <Camera size={26} color="#FFFFFF" />
+          )}
         </TouchableOpacity>
 
-        {/* Right Floating Circular Button (≘ Catches Inventory) */}
-        <TouchableOpacity
-          style={[
-            styles.sideCircleBtn,
-            activeTab === 'CATCHES' && styles.sideCircleBtnActive,
-          ]}
-          onPress={() => onSelectTab('CATCHES')}
-          activeOpacity={0.8}
-        >
-          {/* 3-Layers Stack Icon */}
-          <View style={styles.layersIconWrapper}>
-            <View style={[styles.layerBar, activeTab === 'CATCHES' && styles.layerBarActive]} />
-            <View style={[styles.layerBar, activeTab === 'CATCHES' && styles.layerBarActive]} />
-            <View style={[styles.layerBar, activeTab === 'CATCHES' && styles.layerBarActive]} />
-          </View>
-        </TouchableOpacity>
+        {/* Right Floating Circular Button: Collection / Catches (hidden on camera) */}
+        {!isScanner && (
+          <TouchableOpacity
+            style={[
+              styles.sideCircleBtn,
+              isCollection && styles.sideCircleBtnActive,
+            ]}
+            onPress={() => onSelectTab('CATCHES')}
+            activeOpacity={0.8}
+          >
+            <Layers
+              size={22}
+              color={isCollection ? '#111111' : '#9CA3AF'}
+            />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -86,7 +88,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
 const styles = StyleSheet.create({
   floatingNavContainer: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 38 : 28,
+    bottom: Platform.OS === 'ios' ? 36 : 26,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -98,93 +100,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 22,
-    pointerEvents: 'box-none',
+    gap: 18,
   },
   sideCircleBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    ...SHADOWS.polaroid,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    ...SHADOWS.soft,
   },
   sideCircleBtnActive: {
-    backgroundColor: '#F7F7F7',
-    borderWidth: 1.5,
-    borderColor: '#111111',
-  },
-  gridIconBox: {
-    width: 20,
-    height: 20,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignContent: 'space-between',
-  },
-  gridSquare: {
-    width: 8.5,
-    height: 8.5,
-    backgroundColor: '#111111',
-    borderRadius: 2.5,
-  },
-  gridSquareActive: {
-    backgroundColor: '#111111',
-  },
-  layersIconWrapper: {
-    width: 22,
-    height: 18,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  layerBar: {
-    width: 22,
-    height: 3.5,
-    backgroundColor: '#111111',
-    borderRadius: 2,
-  },
-  layerBarActive: {
-    backgroundColor: '#111111',
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
   },
   centerShutterBtn: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: '#111111',
     alignItems: 'center',
     justifyContent: 'center',
-    ...SHADOWS.heavy,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    ...SHADOWS.soft,
+  },
+  centerShutterBtnOnCamera: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+  },
+  innerShutterCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#FFFFFF',
   },
   centerShutterDisabled: {
     opacity: 0.6,
-  },
-  cameraIconWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraNotch: {
-    width: 10,
-    height: 3.5,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
-    marginBottom: -1,
-  },
-  cameraBody: {
-    width: 32,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2.8,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraLens: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2.2,
-    borderColor: '#FFFFFF',
   },
 });

@@ -168,7 +168,7 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
                 {/* Biome */}
                 <View style={styles.gridCell}>
                   <Text style={styles.cellLabel}>🌲 BIOME</Text>
-                  <Text style={styles.cellValue} numberOfLines={2}>
+                  <Text style={styles.cellValue}>
                     {specimen.biome}
                   </Text>
                 </View>
@@ -176,7 +176,7 @@ export const SpecimenDetailModal: React.FC<SpecimenDetailModalProps> = ({
                 {/* Region */}
                 <View style={styles.gridCell}>
                   <Text style={styles.cellLabel}>🗺️ REGION</Text>
-                  <Text style={styles.cellValue} numberOfLines={2}>
+                  <Text style={styles.cellValue}>
                     {specimen.region}
                   </Text>
                 </View>

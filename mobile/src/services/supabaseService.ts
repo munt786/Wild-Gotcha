@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CatchRecord, Specimen, UserProfile, CloudSyncStatus } from '../types';
+import { CatchRecord, UserProfile } from '../types';
 import { StorageService } from './storageService';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -23,6 +23,71 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY) {
   }
 }
 
+/**
+ * Maps a Supabase user object and metadata into the canonical UserProfile format.
+ * Centralizing this follows DRY and KISS principles so user data is handled identically everywhere.
+ */
+function mapSupabaseUserToProfile(u: any, fallbackEmail?: string, fallbackDisplayName?: string): UserProfile {
+  const email = u?.email || fallbackEmail || '';
+  const displayName =
+    u?.user_metadata?.full_name ||
+    u?.user_metadata?.display_name ||
+    u?.user_metadata?.name ||
+    fallbackDisplayName ||
+    (email ? email.split('@')[0] : 'Explorer');
+
+  return {
+    id: u?.id || 'user_' + Date.now(),
+    email,
+    displayName,
+    handle: u?.user_metadata?.handle || `@${displayName.toLowerCase().replace(/\s+/g, '_')}`,
+    avatarUrl: (u?.user_metadata?.avatar_url !== undefined && u?.user_metadata?.avatar_url !== null)
+      ? u.user_metadata.avatar_url
+      : (u?.user_metadata?.picture || ''),
+    isGuest: false,
+    level: 1,
+    rankTitle: 'Rookie Naturalist',
+    createdAt: u?.created_at || new Date().toISOString(),
+  };
+}
+
+/**
+ * Safely converts any local date string into valid ISO 8601 for PostgreSQL timestamptz
+ */
+function toIsoTimestamp(dateStr?: string): string {
+  if (!dateStr) return new Date().toISOString();
+  if (/^\d{4}-\d{2}-\d{2}T/.test(dateStr)) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  const clean = dateStr.replace(/[•·]/g, ' ').replace(/\s+/g, ' ').trim();
+  const d = new Date(clean);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString();
+  }
+  return new Date().toISOString();
+}
+
+/**
+ * Formats an ISO string from Supabase into the application's clean display string
+ */
+function formatTimestampForDisplay(isoOrStr?: string): string {
+  if (!isoOrStr) return '';
+  if (isoOrStr.includes('•')) return isoOrStr;
+  const d = new Date(isoOrStr);
+  if (isNaN(d.getTime())) return isoOrStr;
+  const dateOnly = d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
+  const timeOnly = d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return `${dateOnly} • ${timeOnly}`;
+}
+
 export class SupabaseService {
   /**
    * Returns true if Supabase project credentials are set up
@@ -39,33 +104,7 @@ export class SupabaseService {
     try {
       const { data } = await supabaseClient.auth.getSession();
       if (data.session?.user) {
-        const u = data.session.user;
-        const profile: UserProfile = {
-          id: u.id,
-          email: u.email || '',
-          displayName:
-            u.user_metadata?.full_name ||
-            u.user_metadata?.display_name ||
-            u.user_metadata?.name ||
-            (u.email ? u.email.split('@')[0] : 'Explorer'),
-          isGuest: false,
-          level: 1,
-          rankTitle: 'Rookie Naturalist',
-          createdAt: u.created_at || new Date().toISOString(),
-        };
-
-        try {
-          await supabaseClient.from('profiles').upsert({
-            id: profile.id,
-            email: profile.email,
-            display_name: profile.displayName,
-            level: 1,
-            rank_title: profile.rankTitle,
-            updated_at: new Date().toISOString(),
-          });
-        } catch (tableErr) {}
-
-        return profile;
+        return mapSupabaseUserToProfile(data.session.user);
       }
       return null;
     } catch (e) {
@@ -82,33 +121,7 @@ export class SupabaseService {
       data: { subscription },
     } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
-        const u = session.user;
-        const profile: UserProfile = {
-          id: u.id,
-          email: u.email || '',
-          displayName:
-            u.user_metadata?.full_name ||
-            u.user_metadata?.display_name ||
-            u.user_metadata?.name ||
-            (u.email ? u.email.split('@')[0] : 'Explorer'),
-          isGuest: false,
-          level: 1,
-          rankTitle: 'Rookie Naturalist',
-          createdAt: u.created_at || new Date().toISOString(),
-        };
-
-        try {
-          await supabaseClient.from('profiles').upsert({
-            id: profile.id,
-            email: profile.email,
-            display_name: profile.displayName,
-            level: 1,
-            rank_title: profile.rankTitle,
-            updated_at: new Date().toISOString(),
-          });
-        } catch (e) {}
-
-        callback(profile);
+        callback(mapSupabaseUserToProfile(session.user));
       } else if (event === 'SIGNED_OUT') {
         callback(null);
       }
@@ -118,8 +131,7 @@ export class SupabaseService {
   }
 
   /**
-   * Handles deep link authentication redirects (e.g. wildgotcha://auth-callback#access_token=... or ?code=...)
-   * on native mobile platforms (Android/iOS).
+   * Handles deep link authentication redirects
    */
   static async handleAuthRedirectUrl(url: string): Promise<UserProfile | null> {
     if (!supabaseClient || !url) return null;
@@ -193,20 +205,13 @@ export class SupabaseService {
 
       const u = data.user;
 
-      // Detect duplicate user in Supabase: Supabase returns identities: [] and sends no email
-      if (
-        u &&
-        Array.isArray(u.identities) &&
-        u.identities.length === 0
-      ) {
+      if (u && Array.isArray(u.identities) && u.identities.length === 0) {
         return {
           user: null,
-          error:
-            'An account with this email is already registered. Please sign in with your password.',
+          error: 'An account with this email is already registered. Please sign in with your password.',
         };
       }
 
-      // If email confirmation is enabled in Supabase, session is null until user clicks link in inbox
       if (u && !data.session && !(u as any).email_confirmed_at) {
         return {
           user: null,
@@ -214,30 +219,7 @@ export class SupabaseService {
         };
       }
 
-      const profile: UserProfile = {
-        id: u?.id || 'user_' + Date.now(),
-        email: u?.email || email,
-        displayName: displayName || email.split('@')[0],
-        isGuest: false,
-        level: 1,
-        rankTitle: 'Rookie Naturalist',
-        createdAt: new Date().toISOString(),
-      };
-
-      // Upsert profile in Supabase table if possible
-      try {
-        await supabaseClient.from('profiles').upsert({
-          id: profile.id,
-          email: profile.email,
-          display_name: profile.displayName,
-          level: 1,
-          rank_title: profile.rankTitle,
-          updated_at: new Date().toISOString(),
-        });
-      } catch (tableErr) {
-        console.warn('Profiles table sync note:', tableErr);
-      }
-
+      const profile = mapSupabaseUserToProfile(u, email, displayName);
       return { user: profile };
     } catch (err: any) {
       return { user: null, error: err.message || 'Failed to sign up' };
@@ -263,31 +245,19 @@ export class SupabaseService {
 
       if (error) return { user: null, error: error.message };
 
-      const u = data.user;
-      const profile: UserProfile = {
-        id: u?.id || 'user_' + Date.now(),
-        email: u?.email || email,
-        displayName: u?.user_metadata?.display_name || email.split('@')[0],
-        isGuest: false,
-        level: 1,
-        rankTitle: 'Rookie Naturalist',
-        createdAt: new Date().toISOString(),
-      };
-
-      return { user: profile };
+      return { user: mapSupabaseUserToProfile(data.user, email) };
     } catch (err: any) {
       return { user: null, error: err.message || 'Failed to sign in' };
     }
   }
 
   /**
-   * Sign in via Real Google OAuth (Google Cloud Console + Supabase)
+   * Sign in via Real Google OAuth
    */
   static async signInWithGoogle(): Promise<{ url?: string; error?: string }> {
     if (!supabaseClient) {
       return {
-        error:
-          'Real Google OAuth connects through your Supabase project. Please create your project on Supabase and add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to mobile/.env.local.',
+        error: 'Real Google OAuth connects through your Supabase project. Please configure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.',
       };
     }
 
@@ -313,7 +283,6 @@ export class SupabaseService {
     }
   }
 
-  // In-memory cache of pending signups awaiting OTP verification
   private static pendingSignUps: Map<
     string,
     { pass: string; displayName: string; localOtp?: string }
@@ -329,7 +298,6 @@ export class SupabaseService {
   ): Promise<{ success: boolean; error?: string; autoVerified?: boolean; localOtp?: string; user?: UserProfile }> {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Local / Standalone mode
     if (!supabaseClient) {
       const accountsRaw = await AsyncStorage.getItem('@wildgotcha_accounts_registry_v1');
       const accounts: Array<{ email: string }> = accountsRaw ? JSON.parse(accountsRaw) : [];
@@ -345,7 +313,6 @@ export class SupabaseService {
       return { success: true, localOtp };
     }
 
-    // Cloud mode with Supabase
     try {
       this.pendingSignUps.set(cleanEmail, { pass, displayName });
 
@@ -366,57 +333,21 @@ export class SupabaseService {
         ) {
           return {
             success: false,
-            error:
-              'Supabase email rate limit reached (free tier allows 2-3 emails/hour). Please wait a few minutes before trying again, or delete the old test user in Supabase.',
-          };
-        }
-        if (error.message?.toLowerCase().includes('error sending confirmation email')) {
-          return {
-            success: false,
-            error:
-              'Unable to send verification code to this email at this time. Please try again later or continue with Google.',
+            error: 'Supabase email rate limit reached. Please wait a few minutes before trying again.',
           };
         }
         return { success: false, error: error.message };
       }
 
-      // Detect duplicate user in Supabase: Supabase returns identities: [] and sends no email
-      if (
-        data.user &&
-        Array.isArray(data.user.identities) &&
-        data.user.identities.length === 0
-      ) {
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
         return {
           success: false,
-          error:
-            'An account with this email is already registered. Please switch to "Sign In" with your password, or delete the old user in Supabase Users list.',
+          error: 'An account with this email is already registered. Please sign in with your password.',
         };
       }
 
-      // If "Confirm email" is disabled in Supabase, data.session exists immediately!
       if (data.user && data.session) {
-        const profile: UserProfile = {
-          id: data.user.id,
-          email: cleanEmail,
-          displayName: displayName || cleanEmail.split('@')[0],
-          isGuest: false,
-          level: 1,
-          rankTitle: 'Rookie Naturalist',
-          createdAt: data.user.created_at || new Date().toISOString(),
-        };
-
-        try {
-          await supabaseClient.from('profiles').upsert({
-            id: profile.id,
-            email: profile.email,
-            display_name: profile.displayName,
-            level: 1,
-            rank_title: profile.rankTitle,
-            updated_at: new Date().toISOString(),
-          });
-        } catch (tableErr) {
-          console.warn('Profiles table sync note:', tableErr);
-        }
+        const profile = mapSupabaseUserToProfile(data.user, cleanEmail, displayName);
         this.pendingSignUps.delete(cleanEmail);
         return { success: true, autoVerified: true, user: profile };
       }
@@ -431,7 +362,7 @@ export class SupabaseService {
   }
 
   /**
-   * Step 2 of Sign Up: Verifies OTP code, registers the account, and returns success to land on login page
+   * Step 2 of Sign Up: Verifies OTP code, registers the account
    */
   static async verifySignUpOtp(
     email: string,
@@ -448,7 +379,6 @@ export class SupabaseService {
       };
     }
 
-    // Local Mode
     if (!supabaseClient) {
       if (!pending) {
         return {
@@ -478,7 +408,6 @@ export class SupabaseService {
       return { success: true };
     }
 
-    // Cloud Supabase Mode
     try {
       let verifyRes = await supabaseClient.auth.verifyOtp({
         email: cleanEmail,
@@ -503,21 +432,6 @@ export class SupabaseService {
         };
       }
 
-      if (pending && verifyRes.data?.user) {
-        try {
-          await supabaseClient.from('profiles').upsert({
-            id: verifyRes.data.user.id,
-            email: cleanEmail,
-            display_name: pending.displayName,
-            level: 1,
-            rank_title: 'Rookie Naturalist',
-            updated_at: new Date().toISOString(),
-          });
-        } catch (tableErr) {
-          console.warn('Profiles table sync note:', tableErr);
-        }
-      }
-
       await supabaseClient.auth.signOut();
       this.pendingSignUps.delete(cleanEmail);
       return { success: true };
@@ -530,7 +444,7 @@ export class SupabaseService {
   }
 
   /**
-   * Create Guest User Profile for instant offline/online gameplay
+   * Create Guest User Profile
    */
   static createGuestProfile(): UserProfile {
     return {
@@ -557,7 +471,7 @@ export class SupabaseService {
   }
 
   /**
-   * Permanently deletes user from Supabase database (catches and profiles) and signs out
+   * Permanently deletes user account and all cloud catches
    */
   static async deleteAccount(
     userId: string,
@@ -565,51 +479,23 @@ export class SupabaseService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       if (supabaseClient) {
-        // 1. Permanently delete user from auth.users via database RPC function
         try {
-          const { error: rpcErr } = await supabaseClient.rpc('delete_self');
-          if (rpcErr) {
-            console.warn('RPC delete_self note:', rpcErr.message);
-          }
-        } catch (rErr) {
-          console.warn('RPC delete_self exception:', rErr);
-        }
+          await supabaseClient.rpc('delete_self');
+        } catch (rErr) {}
 
-        // 2. Delete user's catches from Supabase 'catches' table
         try {
-          const { error: catchesErr } = await supabaseClient
+          await supabaseClient
             .from('catches')
             .delete()
             .eq('user_id', userId);
-          if (catchesErr) {
-            console.warn('Delete cloud catches note:', catchesErr.message);
-          }
-        } catch (cErr) {
-          console.warn('Catches table delete note:', cErr);
-        }
+        } catch (cErr) {}
 
-        // 3. Delete user's profile from Supabase 'profiles' table
-        try {
-          const { error: profileErr } = await supabaseClient
-            .from('profiles')
-            .delete()
-            .eq('id', userId);
-          if (profileErr) {
-            console.warn('Delete cloud profile note:', profileErr.message);
-          }
-        } catch (pErr) {
-          console.warn('Profile table delete note:', pErr);
-        }
-
-        // 4. Clear local session tokens (user was already deleted from auth.users)
         try {
           await supabaseClient.auth.signOut({ scope: 'local' });
         } catch (sErr) {}
       }
 
-      // 5. Wipe all local device data for this user
       await StorageService.deleteLocalAccount(userId, email);
-
       return { success: true };
     } catch (err: any) {
       console.error('Delete account error:', err);
@@ -618,13 +504,13 @@ export class SupabaseService {
   }
 
   /**
-   * Uploads and syncs catches to cloud database
+   * Uploads and syncs catches to cloud database with payload optimization using direct fetch
    */
   static async syncCatchesToCloud(
     userId: string,
     catches: CatchRecord[]
   ): Promise<{ success: boolean; syncedCount: number; error?: string }> {
-    if (!supabaseClient || catches.length === 0) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || catches.length === 0) {
       return { success: true, syncedCount: 0 };
     }
 
@@ -640,45 +526,96 @@ export class SupabaseService {
         breed: c.breed || 'Wild Species',
         rarity: c.rarity,
         image_url: c.image_url,
-        sticker_url: c.sticker_url || c.image_url,
-        box_2d: c.box_2d,
+        // Save bandwidth: if sticker is identical to image or empty, store null. Reading falls back to image_url.
+        sticker_url: (c.sticker_url && c.sticker_url !== c.image_url) ? c.sticker_url : null,
+        box_2d: c.box_2d || null,
         biome: c.biome,
         region: c.region,
         danger_level: c.danger_level,
-        caught_at: c.caught_at,
+        caught_at: toIsoTimestamp(c.caught_at),
         lore: c.lore,
       }));
 
-      const { error } = await supabaseClient.from('catches').upsert(records, {
-        onConflict: 'catch_id',
+      const url = `${SUPABASE_URL}/rest/v1/catches?on_conflict=catch_id`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify(records),
       });
 
-      if (error) {
-        console.warn('Cloud sync note:', error.message);
-        return { success: false, syncedCount: 0, error: error.message };
+      if (!res.ok) {
+        const errorText = await res.text();
+        return { success: false, syncedCount: 0, error: errorText || `HTTP ${res.status}` };
       }
 
       return { success: true, syncedCount: records.length };
     } catch (err: any) {
-      console.warn('Catches cloud sync error:', err);
-      return { success: false, syncedCount: 0, error: err.message };
+      return { success: false, syncedCount: 0, error: err?.message || 'Sync failed' };
     }
   }
 
   /**
-   * Fetches user's saved catches from cloud database
+   * Fetches lightweight catch metadata (ID and timestamp) to check sync status
+   * Transfers only ~150 bytes using direct native fetch
    */
-  static async fetchCloudCatches(userId: string): Promise<CatchRecord[]> {
-    if (!supabaseClient || !userId) return [];
+  static async fetchCloudCatchSummary(
+    userId: string
+  ): Promise<{ data: Array<{ catch_id: string; caught_at: string }> | null; error?: string }> {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !userId) {
+      return { data: null, error: 'Unavailable' };
+    }
 
     try {
-      const { data, error } = await supabaseClient
-        .from('catches')
-        .select('*')
-        .eq('user_id', userId)
-        .order('caught_at', { ascending: false });
+      const url = `${SUPABASE_URL}/rest/v1/catches?select=catch_id,caught_at&user_id=eq.${encodeURIComponent(userId)}`;
+      const res = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      });
 
-      if (error || !data) return [];
+      if (!res.ok) {
+        return { data: null, error: `HTTP ${res.status}` };
+      }
+
+      const data = await res.json();
+      return { data: Array.isArray(data) ? data : [], error: undefined };
+    } catch (err: any) {
+      return { data: null, error: err?.message || 'Failed to fetch catch summary' };
+    }
+  }
+
+  /**
+   * Fetches user's saved catches from cloud database using direct native fetch
+   * Can fetch all catches or only specific catch IDs (e.g. catches missing from local device)
+   */
+  static async fetchCloudCatches(userId: string, catchIds?: string[]): Promise<CatchRecord[]> {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !userId) return [];
+    if (catchIds && catchIds.length === 0) return [];
+
+    try {
+      let url = `${SUPABASE_URL}/rest/v1/catches?select=*&user_id=eq.${encodeURIComponent(userId)}&order=caught_at.desc`;
+      if (catchIds && catchIds.length > 0) {
+        const idList = catchIds.map((id) => `"${id}"`).join(',');
+        url += `&catch_id=in.(${encodeURIComponent(idList)})`;
+      }
+
+      const res = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      });
+
+      if (!res.ok) return [];
+
+      const data = await res.json();
+      if (!Array.isArray(data)) return [];
 
       return data.map((d: any) => ({
         catch_id: d.catch_id,
@@ -690,17 +627,53 @@ export class SupabaseService {
         breed: d.breed,
         rarity: d.rarity,
         image_url: d.image_url,
-        sticker_url: d.sticker_url,
+        sticker_url: d.sticker_url || d.image_url,
         box_2d: d.box_2d,
         biome: d.biome,
         region: d.region,
         danger_level: d.danger_level,
-        caught_at: d.caught_at,
+        caught_at: formatTimestampForDisplay(d.caught_at),
         lore: d.lore,
       }));
-    } catch (err) {
-      console.warn('Fetch cloud catches error:', err);
+    } catch (err: any) {
       return [];
+    }
+  }
+
+  /**
+   * Updates user metadata (handle, avatarUrl, displayName)
+   * Local storage (AsyncStorage) is the primary authoritative source for handles and base64 avatars.
+   * If displayName or handle is updated, also syncs to Supabase 'profiles' table via REST.
+   */
+  static async updateUserProfile(updates: { avatarUrl?: string; handle?: string; displayName?: string }): Promise<void> {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+    try {
+      // If displayName or handle is provided, sync to Supabase 'profiles' table
+      const nameToSync = updates.displayName || updates.handle;
+      if (nameToSync) {
+        try {
+          const sessionUser = await this.getCurrentSessionUser();
+          if (sessionUser?.id) {
+            await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(sessionUser.id)}`, {
+              method: 'PATCH',
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+                Prefer: 'return=minimal',
+              },
+              body: JSON.stringify({
+                display_name: updates.displayName || updates.handle?.replace(/^@/, ''),
+                updated_at: new Date().toISOString(),
+              }),
+            });
+          }
+        } catch (profileErr) {
+          // Quietly ignore network glitch
+        }
+      }
+    } catch (e) {
+      // Quietly ignore
     }
   }
 }

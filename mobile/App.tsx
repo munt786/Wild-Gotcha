@@ -6,12 +6,19 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  Alert,
   ActivityIndicator,
   Linking,
+  Platform,
 } from 'react-native';
+import {
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Info,
+  X,
+} from 'lucide-react-native';
 import { ActiveTab, TaxonomicCategory, Specimen, CatchRecord, RarityLevel, UserProfile, CloudSyncStatus } from './src/types';
-import { COLORS } from './src/theme/colors';
+import { COLORS, SHADOWS } from './src/theme/colors';
 import { Header } from './src/components/Header';
 import { BottomNavBar } from './src/components/BottomNavBar';
 import { UniqueIndexGrid } from './src/components/UniqueIndexGrid';
@@ -20,10 +27,50 @@ import { CatchesInventoryGrid } from './src/components/CatchesInventoryGrid';
 import { SpecimenDetailModal } from './src/components/SpecimenDetailModal';
 import { AuthModal } from './src/components/AuthModal';
 import { AuthScreen } from './src/components/AuthScreen';
+import { ProfileView } from './src/components/ProfileView';
+import { SettingsModal } from './src/components/SettingsModal';
 import { ApiService } from './src/services/api';
 import { StorageService } from './src/services/storageService';
 import { SupabaseService } from './src/services/supabaseService';
 import { ProgressionService } from './src/services/progressionService';
+
+/**
+ * Reconstructs unique Specimen Dex entries from all caught records
+ */
+function deriveSpecimensFromCatches(
+  catchesList: CatchRecord[],
+  baseSpecimens: Specimen[] = []
+): Specimen[] {
+  const specimenMap = new Map<string, Specimen>();
+  baseSpecimens.forEach((s) => specimenMap.set(s.common_name.toLowerCase(), { ...s }));
+
+  catchesList.forEach((c) => {
+    const key = c.common_name.toLowerCase();
+    const existing = specimenMap.get(key);
+    if (!existing) {
+      specimenMap.set(key, {
+        id: c.specimen_id,
+        catalog_id: c.catalog_id,
+        common_name: c.common_name,
+        scientific_name: c.scientific_name,
+        category: c.category,
+        rarity: c.rarity,
+        image_url: c.image_url,
+        lore: c.lore,
+        biome: c.biome,
+        region: c.region,
+        date_spotted: (c.caught_at || '').split('•')[0].trim() || 'Discovered',
+        danger_level: c.danger_level,
+        captured_count: 1,
+        first_caught_at: c.caught_at,
+      });
+    } else {
+      existing.captured_count = Math.max(existing.captured_count || 1, 1);
+    }
+  });
+
+  return Array.from(specimenMap.values());
+}
 
 export default function App() {
   // Navigation & Category State
@@ -38,6 +85,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [authModalVisible, setAuthModalVisible] = useState<boolean>(false);
+  const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>('offline_saved');
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
@@ -56,49 +104,132 @@ export default function App() {
   const [scanNotice, setScanNotice] = useState<{
     title: string;
     message: string;
-    type: 'warning' | 'info' | 'error';
+    type: 'warning' | 'info' | 'error' | 'success';
   } | null>(null);
+
+  const activeSyncUserRef = useRef<string | null>(null);
+  const userRef = useRef<UserProfile | null>(null);
+
+  React.useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  // Canonical loader & cloud synchronizer (Follows DRY & prevents race conditions)
+  const loadAndSyncUserData = async (targetProfile: UserProfile) => {
+    if (activeSyncUserRef.current === targetProfile.id) {
+      return;
+    }
+    activeSyncUserRef.current = targetProfile.id;
+
+    try {
+      setDeleteNotice(null);
+      const existingLocal = await StorageService.loadUserProfile();
+      const mergedProfile: UserProfile = {
+        ...targetProfile,
+        handle:
+          existingLocal && existingLocal.id === targetProfile.id && existingLocal.handle
+            ? existingLocal.handle
+            : targetProfile.handle,
+        avatarUrl:
+          existingLocal && existingLocal.id === targetProfile.id && existingLocal.avatarUrl
+            ? existingLocal.avatarUrl
+            : targetProfile.avatarUrl,
+      };
+      setUser(mergedProfile);
+      await StorageService.saveUserProfile(mergedProfile);
+
+      // 1. Instantly load local data from on-device storage
+      const [localCatches, localSpecimens] = await Promise.all([
+        StorageService.loadCatches(targetProfile.id),
+        StorageService.loadSpecimens(targetProfile.id),
+      ]);
+      setCatches(localCatches);
+      setSpecimens(localSpecimens);
+
+      // 2. High-efficiency lightweight cloud synchronization
+      if (!targetProfile.isGuest && SupabaseService.isConfigured()) {
+        setSyncStatus('syncing');
+
+        // Fetch ~150-byte metadata summary to check for new/missing catches without downloading full base64 images
+        const { data: cloudSummary, error: summaryError } =
+          await SupabaseService.fetchCloudCatchSummary(targetProfile.id);
+
+        if (!summaryError && cloudSummary) {
+          const cloudCatchIdSet = new Set(cloudSummary.map((c) => c.catch_id));
+          const localCatchIdSet = new Set(localCatches.map((c) => c.catch_id));
+
+          // Catches that exist in cloud but missing locally (from other devices)
+          const missingFromLocalIds = cloudSummary
+            .filter((c) => !localCatchIdSet.has(c.catch_id))
+            .map((c) => c.catch_id);
+
+          let updatedCatches = localCatches;
+          if (missingFromLocalIds.length > 0) {
+            const newCloudCatches = await SupabaseService.fetchCloudCatches(
+              targetProfile.id,
+              missingFromLocalIds
+            );
+            if (newCloudCatches.length > 0) {
+              const catchMap = new Map<string, CatchRecord>();
+              [...localCatches, ...newCloudCatches].forEach((c) => catchMap.set(c.catch_id, c));
+              updatedCatches = Array.from(catchMap.values());
+              setCatches(updatedCatches);
+              await StorageService.saveCatches(targetProfile.id, updatedCatches);
+
+              const mergedSpecimens = deriveSpecimensFromCatches(updatedCatches, localSpecimens);
+              setSpecimens(mergedSpecimens);
+              await StorageService.saveSpecimens(targetProfile.id, mergedSpecimens);
+            }
+          }
+
+          // Catches that exist locally but not yet backed up to cloud
+          const unsyncedToCloud = localCatches.filter((c) => !cloudCatchIdSet.has(c.catch_id));
+          if (unsyncedToCloud.length > 0) {
+            await SupabaseService.syncCatchesToCloud(targetProfile.id, unsyncedToCloud);
+          }
+
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus('offline_saved');
+        }
+      } else {
+        setSyncStatus('offline_saved');
+      }
+    } catch (err) {
+      console.warn('Load and sync note:', err);
+    } finally {
+      activeSyncUserRef.current = null;
+    }
+  };
 
   // On App Mount: Restore saved user session or detect OAuth redirect
   React.useEffect(() => {
+    let syncTimer: any = null;
+
     const initApp = async () => {
       try {
         let savedProfile = await StorageService.loadUserProfile();
 
-        // Check if user just returned from Google OAuth redirect!
         if (!savedProfile && SupabaseService.isConfigured()) {
           const oauthUser = await SupabaseService.getCurrentSessionUser();
           if (oauthUser) {
             savedProfile = oauthUser;
-            await StorageService.saveUserProfile(oauthUser);
           }
         }
 
         if (savedProfile) {
           setUser(savedProfile);
-          // Load this specific user's isolated catches and specimens
-          const [savedCatches, savedSpecimens] = await Promise.all([
+          const [localCatches, localSpecimens] = await Promise.all([
             StorageService.loadCatches(savedProfile.id),
             StorageService.loadSpecimens(savedProfile.id),
           ]);
+          setCatches(localCatches);
+          setSpecimens(localSpecimens);
 
-          if (savedCatches.length > 0) setCatches(savedCatches);
-          if (savedSpecimens.length > 0) setSpecimens(savedSpecimens);
-
-          if (!savedProfile.isGuest && SupabaseService.isConfigured()) {
-            setSyncStatus('syncing');
-            const cloudCatches = await SupabaseService.fetchCloudCatches(savedProfile.id);
-            if (cloudCatches.length > 0) {
-              const catchMap = new Map<string, CatchRecord>();
-              [...savedCatches, ...cloudCatches].forEach((c) => catchMap.set(c.catch_id, c));
-              const merged = Array.from(catchMap.values());
-              setCatches(merged);
-              await StorageService.saveCatches(savedProfile.id, merged);
-              setSyncStatus('synced');
-            } else {
-              setSyncStatus('synced');
-            }
-          }
+          // Debounce background cloud sync to avoid in-flight connection aborts during rapid browser reloads
+          syncTimer = setTimeout(() => {
+            loadAndSyncUserData(savedProfile!);
+          }, 800);
         }
       } catch (err) {
         console.warn('Initial storage load note:', err);
@@ -112,7 +243,9 @@ export default function App() {
     // Listen for OAuth session changes (e.g. Google redirect)
     const authSubscription = SupabaseService.onAuthStateChange(async (oauthUser) => {
       if (oauthUser) {
-        await handleUserChange(oauthUser);
+        if (!userRef.current || userRef.current.id !== oauthUser.id) {
+          await loadAndSyncUserData(oauthUser);
+        }
       }
     });
 
@@ -121,7 +254,7 @@ export default function App() {
       if (event.url && (event.url.includes('auth-callback') || event.url.includes('access_token') || event.url.includes('code='))) {
         const oauthUser = await SupabaseService.handleAuthRedirectUrl(event.url);
         if (oauthUser) {
-          await handleUserChange(oauthUser);
+          await loadAndSyncUserData(oauthUser);
         }
       }
     };
@@ -132,6 +265,7 @@ export default function App() {
     });
 
     return () => {
+      if (syncTimer) clearTimeout(syncTimer);
       authSubscription.unsubscribe();
       linkSub.remove();
     };
@@ -139,7 +273,7 @@ export default function App() {
 
   React.useEffect(() => {
     if (scanNotice) {
-      const timer = setTimeout(() => setScanNotice(null), 7000);
+      const timer = setTimeout(() => setScanNotice(null), 4000);
       return () => clearTimeout(timer);
     }
   }, [scanNotice]);
@@ -147,38 +281,8 @@ export default function App() {
   // Handle User Auth change (login, register, guest, logout)
   const handleUserChange = async (newProfile: UserProfile | null) => {
     if (newProfile) {
-      setDeleteNotice(null);
-      setUser(newProfile);
-      await StorageService.saveUserProfile(newProfile);
-
-      // Load this user's isolated catches and specimens from local storage
-      const [userCatches, userSpecimens] = await Promise.all([
-        StorageService.loadCatches(newProfile.id),
-        StorageService.loadSpecimens(newProfile.id),
-      ]);
-      setCatches(userCatches);
-      setSpecimens(userSpecimens);
-
-      if (!newProfile.isGuest && SupabaseService.isConfigured()) {
-        setSyncStatus('syncing');
-        const cloudCatches = await SupabaseService.fetchCloudCatches(newProfile.id);
-        const catchMap = new Map<string, CatchRecord>();
-        [...userCatches, ...cloudCatches].forEach((c) => catchMap.set(c.catch_id, c));
-        const merged = Array.from(catchMap.values());
-        setCatches(merged);
-        await StorageService.saveCatches(newProfile.id, merged);
-        await SupabaseService.syncCatchesToCloud(newProfile.id, merged);
-        setSyncStatus('synced');
-        setScanNotice({
-          title: 'Cloud Dex Synced ☁️',
-          message: `${merged.length} catches verified in your account.`,
-          type: 'info',
-        });
-      } else {
-        setSyncStatus('offline_saved');
-      }
+      await loadAndSyncUserData(newProfile);
     } else {
-      // Complete user sign-out: clear state so nothing leaks into another account
       setUser(null);
       setCatches([]);
       setSpecimens([]);
@@ -189,7 +293,7 @@ export default function App() {
 
   // Handle Account Deletion: purges session and displays notice on login screen
   const handleAccountDeleted = () => {
-    setDeleteNotice('🗑️ Your account and all associated cloud data have been permanently deleted.');
+    setDeleteNotice('Your account and all associated cloud data have been permanently deleted.');
     handleUserChange(null);
   };
 
@@ -200,19 +304,84 @@ export default function App() {
       return;
     }
     setSyncStatus('syncing');
-    const res = await SupabaseService.syncCatchesToCloud(user.id, catches);
-    if (res.success) {
-      setSyncStatus('synced');
-      setScanNotice({
-        title: 'Cloud Sync Complete ☁️',
-        message: `${res.syncedCount} catches safely verified in cloud storage.`,
-        type: 'info',
-      });
-    } else {
+    setScanNotice({
+      title: 'Backing Up...',
+      message: 'Syncing catches with cloud storage',
+      type: 'info',
+    });
+
+    try {
+      // 1. Fetch cloud metadata summary first to check what actually needs uploading/downloading
+      const { data: cloudSummary, error: summaryError } =
+        await SupabaseService.fetchCloudCatchSummary(user.id);
+
+      let unsyncedCatches = catches;
+      let missingFromLocalIds: string[] = [];
+
+      if (!summaryError && cloudSummary) {
+        const cloudCatchIdSet = new Set(cloudSummary.map((c) => c.catch_id));
+        const localCatchIdSet = new Set(catches.map((c) => c.catch_id));
+
+        // Catches not yet in cloud
+        unsyncedCatches = catches.filter((c) => !cloudCatchIdSet.has(c.catch_id));
+
+        // Catches in cloud not yet on this device
+        missingFromLocalIds = cloudSummary
+          .filter((c) => !localCatchIdSet.has(c.catch_id))
+          .map((c) => c.catch_id);
+      }
+
+      // 2. Upload any catches not yet in cloud
+      let uploadSuccess = true;
+      let uploadError = '';
+      if (unsyncedCatches.length > 0) {
+        const res = await SupabaseService.syncCatchesToCloud(user.id, unsyncedCatches);
+        uploadSuccess = res.success;
+        uploadError = res.error || '';
+      }
+
+      // 3. Download any catches from cloud missing on this device (multi-device sync!)
+      let updatedCatches = catches;
+      if (missingFromLocalIds.length > 0) {
+        const newCloudCatches = await SupabaseService.fetchCloudCatches(
+          user.id,
+          missingFromLocalIds
+        );
+        if (newCloudCatches.length > 0) {
+          const catchMap = new Map<string, CatchRecord>();
+          [...catches, ...newCloudCatches].forEach((c) => catchMap.set(c.catch_id, c));
+          updatedCatches = Array.from(catchMap.values());
+          setCatches(updatedCatches);
+          await StorageService.saveCatches(user.id, updatedCatches);
+
+          const mergedSpecimens = deriveSpecimensFromCatches(updatedCatches, specimens);
+          setSpecimens(mergedSpecimens);
+          await StorageService.saveSpecimens(user.id, mergedSpecimens);
+        }
+      }
+
+      if (uploadSuccess) {
+        setSyncStatus('synced');
+        setScanNotice({
+          title: 'Backup Successful',
+          message: updatedCatches.length > 0
+            ? `${updatedCatches.length} catches backed up and synced with cloud.`
+            : 'Your collection is backed up and in sync with cloud.',
+          type: 'success',
+        });
+      } else {
+        setSyncStatus('error');
+        setScanNotice({
+          title: 'Backup Notice',
+          message: uploadError || 'Could not sync. Catches remain saved safely on device.',
+          type: 'warning',
+        });
+      }
+    } catch (syncErr: any) {
       setSyncStatus('error');
       setScanNotice({
-        title: 'Cloud Sync Notice',
-        message: res.error || 'Could not sync cloud. All catches remain saved on your device.',
+        title: 'Backup Notice',
+        message: syncErr?.message || 'Could not complete backup. Catches are safely preserved on device.',
         type: 'warning',
       });
     }
@@ -479,9 +648,9 @@ export default function App() {
       }
       await StorageService.saveSpecimens(userId, updatedSpecimens);
 
-      // Cloud auto-sync if authenticated
+      // Cloud auto-sync if authenticated (upload only the newly captured catch)
       if (user && !user.isGuest && SupabaseService.isConfigured()) {
-        SupabaseService.syncCatchesToCloud(user.id, updatedCatches).then((syncRes) => {
+        SupabaseService.syncCatchesToCloud(user.id, [newCatch]).then((syncRes) => {
           if (syncRes.success) setSyncStatus('synced');
         }).catch(() => {
           // Keep offline state safe
@@ -626,36 +795,43 @@ export default function App() {
       {/* Dynamic In-App Scanner Notification Banner */}
       {scanNotice && (
         <View style={styles.noticeBanner}>
-          <Text style={styles.noticeIcon}>
-            {scanNotice.type === 'warning' ? '🔍' : scanNotice.type === 'error' ? '⚠️' : 'ℹ️'}
-          </Text>
+          <View style={styles.noticeIconWrapper}>
+            {scanNotice.type === 'success' ? (
+              <CheckCircle2 size={19} color="#10B981" />
+            ) : scanNotice.type === 'warning' ? (
+              <AlertCircle size={19} color="#F59E0B" />
+            ) : scanNotice.type === 'error' ? (
+              <AlertTriangle size={19} color="#EF4444" />
+            ) : (
+              <Info size={19} color="#3B82F6" />
+            )}
+          </View>
           <View style={styles.noticeTextContainer}>
             <Text style={styles.noticeTitle}>{scanNotice.title}</Text>
-            <Text style={styles.noticeMessage}>{scanNotice.message}</Text>
+            {scanNotice.message ? (
+              <Text style={styles.noticeMessage}>{scanNotice.message}</Text>
+            ) : null}
           </View>
           <TouchableOpacity
             style={styles.noticeDismissBtn}
             onPress={() => setScanNotice(null)}
             activeOpacity={0.7}
           >
-            <Text style={styles.noticeDismissText}>✕</Text>
+            <X size={15} color="#9CA3AF" />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* 2. Header Component (Dynamic Top Bar: State 1, 2, or Hidden) */}
+      {/* 2. Header Component (Dynamic Top Bar: Segmented Switcher & Category Dropdown) */}
       <Header
         activeTab={activeTab}
+        onSelectTab={setActiveTab}
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
-        isOfflineMode={isOfflineMode}
-        onToggleOfflineMode={handleToggleOfflineMode}
-        user={user}
-        playerLevel={ProgressionService.getProgression(catches, specimens).level}
-        onOpenAuth={() => setAuthModalVisible(true)}
+        onOpenSettings={() => setSettingsModalVisible(true)}
       />
 
-      {/* 3. Main Content Views (Three Tabs) */}
+      {/* 3. Main Content Views (Four Tabs: Catches, Dex, Scanner, Profile) */}
       <View style={styles.contentBody}>
         {activeTab === 'INDEX' && (
           // Tab 1: Unique Index (Pokedex Grid View)
@@ -674,6 +850,7 @@ export default function App() {
             isAnalyzing={isAnalyzing}
             isOfflineMode={isOfflineMode}
             onToggleOfflineMode={handleToggleOfflineMode}
+            onClose={() => setActiveTab('INDEX')}
           />
         )}
 
@@ -682,6 +859,50 @@ export default function App() {
           <CatchesInventoryGrid
             catches={catches}
             onSelectCatch={handleOpenCatchDetail}
+          />
+        )}
+
+        {activeTab === 'PROFILE' && (
+          // Tab 4: Profile & Stats Dashboard (Screenshots 1, 2, 3)
+          <ProfileView
+            user={user}
+            catches={catches}
+            specimens={specimens}
+            onSelectTab={setActiveTab}
+            onOpenCatchDetail={handleOpenCatchDetail}
+            onUpdateHandle={async (newHandle) => {
+              if (user) {
+                const updated = { ...user, handle: newHandle };
+                setUser(updated);
+                await StorageService.saveUserProfile(updated);
+                await StorageService.updateAccountMetadata(user.id, { handle: newHandle });
+                if (!user.isGuest && SupabaseService.isConfigured()) {
+                  SupabaseService.updateUserProfile({ handle: newHandle }).catch(() => {});
+                }
+                setScanNotice({
+                  title: 'Handle Updated',
+                  message: `Your handle has been updated to ${newHandle}`,
+                  type: 'success',
+                });
+              }
+            }}
+            onUpdateAvatar={async (newAvatarUri) => {
+              if (user) {
+                const cleanUri = newAvatarUri && newAvatarUri.trim() ? newAvatarUri : undefined;
+                const updated = { ...user, avatarUrl: cleanUri };
+                setUser(updated);
+                await StorageService.saveUserProfile(updated);
+                await StorageService.updateAccountMetadata(user.id, { avatarUrl: cleanUri || '' });
+                if (!user.isGuest && SupabaseService.isConfigured()) {
+                  SupabaseService.updateUserProfile({ avatarUrl: cleanUri || '' }).catch(() => {});
+                }
+                setScanNotice({
+                  title: cleanUri ? 'Profile Photo Updated' : 'Profile Photo Removed',
+                  message: cleanUri ? 'Your profile photo has been updated.' : 'Your profile photo was successfully removed.',
+                  type: 'success',
+                });
+              }
+            }}
           />
         )}
       </View>
@@ -702,7 +923,31 @@ export default function App() {
         onRelease={handleReleaseSpecimen}
       />
 
-      {/* 6. User Passport & Cloud Storage Modal */}
+      {/* 6. Settings Modal Sheet (Screenshots 4 & 5) */}
+      <SettingsModal
+        visible={settingsModalVisible}
+        onClose={() => setSettingsModalVisible(false)}
+        user={user}
+        onSignOut={() => {
+          setSettingsModalVisible(false);
+          handleUserChange(null);
+        }}
+        onDeleteAccount={async () => {
+          setSettingsModalVisible(false);
+          if (user) {
+            await StorageService.deleteLocalAccount(user.id, user.email);
+          }
+          setUser(null);
+          setCatches([]);
+          setSpecimens([]);
+          await StorageService.saveUserProfile(null);
+          setDeleteNotice('Your account and all associated data have been permanently deleted.');
+        }}
+        onTriggerSync={handleTriggerSync}
+        isCloudConfigured={SupabaseService.isConfigured()}
+      />
+
+      {/* 7. User Passport & Cloud Storage Modal */}
       <AuthModal
         visible={authModalVisible}
         onClose={() => setAuthModalVisible(false)}
@@ -733,7 +978,7 @@ const styles = StyleSheet.create({
   },
   noticeBanner: {
     position: 'absolute',
-    top: 56,
+    top: Platform.OS === 'ios' ? 56 : 48,
     left: 18,
     right: 18,
     backgroundColor: 'rgba(20, 20, 20, 0.94)',
@@ -742,12 +987,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 999,
-    boxShadow: '0px 6px 20px rgba(0, 0, 0, 0.28)',
+    zIndex: 9999,
+    ...SHADOWS.soft,
   },
-  noticeIcon: {
-    fontSize: 22,
+  noticeIconWrapper: {
     marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   noticeTextContainer: {
     flex: 1,
@@ -764,12 +1010,9 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   noticeDismissBtn: {
-    padding: 8,
+    padding: 6,
     marginLeft: 6,
-  },
-  noticeDismissText: {
-    color: '#A0A0A0',
-    fontSize: 16,
-    fontWeight: '700',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

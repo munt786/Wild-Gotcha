@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { SwitchCamera } from 'lucide-react-native';
+import { SwitchCamera, Zap, X, Image as ImageIcon } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 const VIEWFINDER_SIZE = Math.min(width * 0.70, 280);
@@ -26,6 +26,7 @@ interface ScannerViewProps {
   isAnalyzing: boolean;
   isOfflineMode?: boolean;
   onToggleOfflineMode?: () => void;
+  onClose?: () => void;
 }
 
 export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
@@ -35,6 +36,7 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
       isAnalyzing,
       isOfflineMode = false,
       onToggleOfflineMode,
+      onClose,
     },
     ref
   ) => {
@@ -336,17 +338,34 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
           )}
         </View>
 
-        {/* 1. TOP BAR: Flash (Left) • Sensor Badge (Center) • Controls: Flip & Gallery (Right) */}
+        {/* 1. TOP BAR: Close & Flash (Left) • Sensor Badge (Center) • Controls: Flip & Gallery (Right) */}
         <View style={styles.topBar}>
-          {/* Flash Button */}
-          <TouchableOpacity
-            style={[styles.topCircleBtn, flashMode === 'on' && styles.topCircleBtnActive]}
-            onPress={toggleFlash}
-            activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.boltIcon}>⚡</Text>
-          </TouchableOpacity>
+          {/* Left Actions: Close Button (✕) & Flash Button */}
+          <View style={styles.topLeftActions}>
+            {onClose && (
+              <TouchableOpacity
+                style={styles.topCircleBtn}
+                onPress={onClose}
+                activeOpacity={0.8}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={18} color="#FFFFFF" strokeWidth={2.4} />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.topCircleBtn, flashMode === 'on' && styles.topCircleBtnActive]}
+              onPress={toggleFlash}
+              activeOpacity={0.8}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Zap
+                size={18}
+                color={flashMode === 'on' ? '#FBBF24' : '#FFFFFF'}
+                fill={flashMode === 'on' ? '#FBBF24' : 'none'}
+              />
+            </TouchableOpacity>
+          </View>
 
           {/* Sensor & Mode Badge */}
           {onToggleOfflineMode ? (
@@ -394,13 +413,13 @@ export const ScannerView = forwardRef<ScannerViewHandle, ScannerViewProps>(
               activeOpacity={0.8}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.topGalleryIcon}>◫</Text>
+              <ImageIcon size={18} color="#FFFFFF" strokeWidth={2.2} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* 2. CENTER VIEWFINDER AREA (Isolated in preview zone - ZERO overlap with zoom pills!) */}
-        <View style={styles.viewfinderArea} pointerEvents="none">
+        <View style={styles.viewfinderArea}>
           <View style={styles.whiteRoundedFrame} />
         </View>
 
@@ -522,6 +541,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     zIndex: 90,
+  },
+  topLeftActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   topCircleBtn: {
     width: 40,

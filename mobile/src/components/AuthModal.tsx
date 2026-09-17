@@ -290,7 +290,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   onPress={() => setShowDeleteConfirm(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.deleteAccountBtnText}>🗑️ Delete Account & All Data</Text>
+                  <Text style={styles.deleteAccountBtnText}>Delete Account & All Data</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -320,7 +320,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       onPress={() => setShowDeleteConfirm(true)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.deleteGuestBtnText}>🗑️ Delete All Local Guest Catches</Text>
+                      <Text style={styles.deleteGuestBtnText}>Delete All Local Guest Catches</Text>
                     </TouchableOpacity>
                   </View>
                 )}

@@ -249,6 +249,8 @@ export class StorageService {
         id: account.id,
         email: account.email,
         displayName: account.displayName,
+        handle: (account as any).handle,
+        avatarUrl: (account as any).avatarUrl,
         isGuest: false,
         level: 1,
         rankTitle: 'Rookie Naturalist',
@@ -258,6 +260,29 @@ export class StorageService {
       return { user: profile };
     } catch (e: any) {
       return { user: null, error: e.message || 'Authentication failed.' };
+    }
+  }
+
+  /**
+   * Updates metadata (displayName, handle, avatarUrl) in the registered accounts list
+   */
+  static async updateAccountMetadata(
+    userId: string,
+    updates: { avatarUrl?: string; handle?: string; displayName?: string }
+  ): Promise<void> {
+    try {
+      const accountsRaw = await AsyncStorage.getItem(KEYS.ACCOUNTS_REGISTRY);
+      if (!accountsRaw) return;
+      const accounts: Array<any> = JSON.parse(accountsRaw);
+      const idx = accounts.findIndex((a) => a.id === userId);
+      if (idx >= 0) {
+        if (updates.avatarUrl !== undefined) accounts[idx].avatarUrl = updates.avatarUrl;
+        if (updates.handle !== undefined) accounts[idx].handle = updates.handle;
+        if (updates.displayName !== undefined) accounts[idx].displayName = updates.displayName;
+        await AsyncStorage.setItem(KEYS.ACCOUNTS_REGISTRY, JSON.stringify(accounts));
+      }
+    } catch (e) {
+      console.warn('Failed to update account metadata:', e);
     }
   }
 
@@ -275,6 +300,8 @@ export class StorageService {
         email: string;
         passwordHash: string;
         displayName: string;
+        handle?: string;
+        avatarUrl?: string;
         createdAt: string;
         isGoogle?: boolean;
       }> = accountsRaw ? JSON.parse(accountsRaw) : [];
@@ -282,6 +309,8 @@ export class StorageService {
       const existingIdx = accounts.findIndex((a) => a.email === cleanEmail);
       if (existingIdx >= 0) {
         accounts[existingIdx].displayName = profile.displayName;
+        if (profile.avatarUrl) accounts[existingIdx].avatarUrl = profile.avatarUrl;
+        if (profile.handle) accounts[existingIdx].handle = profile.handle;
         accounts[existingIdx].isGoogle = true;
       } else {
         accounts.push({
@@ -289,6 +318,8 @@ export class StorageService {
           email: cleanEmail,
           passwordHash: 'google_oauth_verified',
           displayName: profile.displayName,
+          handle: profile.handle,
+          avatarUrl: profile.avatarUrl,
           createdAt: profile.createdAt,
           isGoogle: true,
         });

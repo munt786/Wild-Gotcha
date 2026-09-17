@@ -7,13 +7,15 @@ import {
   Modal,
   Pressable,
   Dimensions,
+  Platform,
 } from 'react-native';
-import { ActiveTab, TaxonomicCategory, UserProfile } from '../types';
+import { LayoutGrid, User, Settings, ChevronDown } from 'lucide-react-native';
+import { ActiveTab, TaxonomicCategory } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
 
-// 2-column exact list matching Screenshot 2
+// 2-column list for category filtering
 const COLUMN_1: TaxonomicCategory[] = [
   'All',
   'Birds',
@@ -33,182 +35,191 @@ const COLUMN_2: TaxonomicCategory[] = [
 
 interface HeaderProps {
   activeTab: ActiveTab;
+  onSelectTab: (tab: ActiveTab) => void;
   selectedCategory: TaxonomicCategory;
   onSelectCategory: (category: TaxonomicCategory) => void;
-  isOfflineMode?: boolean;
-  onToggleOfflineMode?: () => void;
-  user?: UserProfile | null;
-  playerLevel?: number;
-  onOpenAuth?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
+  onSelectTab,
   selectedCategory,
   onSelectCategory,
-  isOfflineMode = false,
-  onToggleOfflineMode,
-  user,
-  playerLevel = 1,
-  onOpenAuth,
+  onOpenSettings,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // Hidden on Scanner tab (Screenshot 4)
+  // Hidden on Camera Scanner
   if (activeTab === 'SCANNER') {
     return null;
   }
 
+  // 1. On Dex (Category Grid / INDEX) tab:
+  // Shows ONLY the category selector dropdown [ ⊞ All ⌵ ]
+  if (activeTab === 'INDEX') {
+    return (
+      <View style={styles.headerAnchor}>
+        <View style={styles.dexCategoryRow}>
+          <TouchableOpacity
+            style={styles.categorySelectorPill}
+            onPress={() => setDropdownOpen(true)}
+            activeOpacity={0.85}
+          >
+            <LayoutGrid size={15} color="#111111" />
+            <Text style={styles.categoryPillText}>{selectedCategory}</Text>
+            <ChevronDown size={14} color="#6B7280" />
+          </TouchableOpacity>
+        </View>
+
+        {/* 2-Column Category Selector Modal */}
+        <Modal
+          visible={dropdownOpen}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setDropdownOpen(false)}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setDropdownOpen(false)}
+          >
+            <Pressable
+              style={styles.dropdownModalCard}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.dropdownCardInner}>
+                <View style={styles.twoColumnWrapper}>
+                  {/* Column 1 */}
+                  <View style={styles.categoryColumn}>
+                    {COLUMN_1.map((cat) => {
+                      const isSelected = selectedCategory === cat;
+                      return (
+                        <TouchableOpacity
+                          key={cat}
+                          style={[
+                            styles.categoryChip,
+                            isSelected && styles.categoryChipActive,
+                          ]}
+                          onPress={() => {
+                            onSelectCategory(cat);
+                            setDropdownOpen(false);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              styles.chipLabel,
+                              isSelected && styles.chipLabelActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {cat}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Column 2 */}
+                  <View style={styles.categoryColumn}>
+                    {COLUMN_2.map((cat) => {
+                      const isSelected = selectedCategory === cat;
+                      return (
+                        <TouchableOpacity
+                          key={cat}
+                          style={[
+                            styles.categoryChip,
+                            isSelected && styles.categoryChipActive,
+                          ]}
+                          onPress={() => {
+                            onSelectCategory(cat);
+                            setDropdownOpen(false);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              styles.chipLabel,
+                              isSelected && styles.chipLabelActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {cat}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </View>
+    );
+  }
+
+  // 2. On Collection tab (CATCHES or PROFILE):
+  // Shows the 2-segment switcher [ Catches | Profile ] centered
+  // Only displays ⚙️ Settings gear on right when on Profile view!
+  const isProfile = activeTab === 'PROFILE';
+
   return (
     <View style={styles.headerAnchor}>
-      <View style={styles.headerRow}>
-        {/* Left: Category Dropdown or Catches Pill */}
-        <View style={styles.leftPillContainer}>
-          {activeTab === 'INDEX' ? (
-            // Screenshot 1: Floating Top Pill [ ⊞ All ⌵ ]
-            <TouchableOpacity
-              style={styles.topPill}
-              onPress={() => setDropdownOpen(!dropdownOpen)}
-              activeOpacity={0.85}
-            >
-              {/* 4-square Grid Icon */}
-              <View style={styles.gridIconBox}>
-                <View style={styles.gridSquare} />
-                <View style={styles.gridSquare} />
-                <View style={styles.gridSquare} />
-                <View style={styles.gridSquare} />
-              </View>
+      <View style={styles.collectionHeaderRow}>
+        {/* Top 2-Segment Pill: Centered [ Catches | Profile ] */}
+        <View style={styles.segmentedNavPill}>
+          {/* Segment 1: Catches */}
+          <TouchableOpacity
+            style={[
+              styles.navSegment,
+              activeTab === 'CATCHES' ? styles.navSegmentActive : styles.navSegmentInactive,
+            ]}
+            onPress={() => onSelectTab('CATCHES')}
+            activeOpacity={0.8}
+          >
+            <LayoutGrid
+              size={15}
+              color={activeTab === 'CATCHES' ? '#111111' : '#9CA3AF'}
+            />
+            {activeTab === 'CATCHES' && (
+              <Text style={styles.navSegmentLabelActive}>Catches</Text>
+            )}
+          </TouchableOpacity>
 
-              <Text style={styles.pillText}>{selectedCategory}</Text>
-              <Text style={styles.chevron}>⌵</Text>
-            </TouchableOpacity>
-          ) : (
-            // Screenshot 3: Floating Top Pill [ ≘ Catches ]
-            <View style={styles.topPillStatic}>
-              <Text style={styles.layersIcon}>≘</Text>
-              <Text style={styles.pillTextStatic}>Catches</Text>
-            </View>
-          )}
+          {/* Segment 2: Profile */}
+          <TouchableOpacity
+            style={[
+              styles.navSegment,
+              activeTab === 'PROFILE' ? styles.navSegmentActive : styles.navSegmentInactive,
+            ]}
+            onPress={() => onSelectTab('PROFILE')}
+            activeOpacity={0.8}
+          >
+            <User
+              size={15}
+              color={activeTab === 'PROFILE' ? '#111111' : '#9CA3AF'}
+            />
+            {activeTab === 'PROFILE' && (
+              <Text style={styles.navSegmentLabelActive}>Profile</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Right Actions: User Profile / Passport + Online / Offline Mode */}
-        <View style={styles.topRightActions}>
-          {onOpenAuth && (
+        {/* Right Action: Settings gear ONLY when on Profile view, positioned absolute right */}
+        {isProfile && onOpenSettings && (
+          <View style={styles.settingsBtnWrapper}>
             <TouchableOpacity
-              style={styles.profilePill}
-              onPress={onOpenAuth}
-              activeOpacity={0.85}
+              style={styles.settingsCircleBtn}
+              onPress={onOpenSettings}
+              activeOpacity={0.8}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.profileEmoji}>
-                {user && !user.isGuest ? '👤' : '🐾'}
-              </Text>
-              <Text style={styles.profilePillText} numberOfLines={1}>
-                {`Lv.${playerLevel} • ${user && !user.isGuest ? user.displayName.split(' ')[0] : 'Guest'}`}
-              </Text>
+              <Settings size={18} color="#111111" />
             </TouchableOpacity>
-          )}
-
-          {onToggleOfflineMode && (
-            <TouchableOpacity
-              style={[
-                styles.modePill,
-                isOfflineMode ? styles.modePillOffline : styles.modePillOnline,
-              ]}
-              onPress={onToggleOfflineMode}
-              activeOpacity={0.85}
-            >
-              <View
-                style={[
-                  styles.modeDot,
-                  { backgroundColor: isOfflineMode ? '#F59E0B' : '#10B981' },
-                ]}
-              />
-              <Text style={styles.modePillText}>
-                {isOfflineMode ? 'Offline' : 'Online'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        )}
       </View>
-
-      {/* Screenshot 2: 2-Column Floating Dropdown Card */}
-      <Modal
-        visible={dropdownOpen}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setDropdownOpen(false)}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={() => setDropdownOpen(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            <View style={styles.dropdownCard}>
-              {/* 2-Column layout matching Screenshot 2 */}
-              <View style={styles.twoColumnContainer}>
-                {/* Column 1 */}
-                <View style={styles.column}>
-                  {COLUMN_1.map((cat) => {
-                    const isSelected = selectedCategory === cat;
-                    return (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.categoryChip,
-                          isSelected && styles.categoryChipActive,
-                        ]}
-                        onPress={() => {
-                          onSelectCategory(cat);
-                          setDropdownOpen(false);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            styles.chipLabel,
-                            isSelected && styles.chipLabelActive,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                {/* Column 2 */}
-                <View style={styles.column}>
-                  {COLUMN_2.map((cat) => {
-                    const isSelected = selectedCategory === cat;
-                    return (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.categoryChip,
-                          isSelected && styles.categoryChipActive,
-                        ]}
-                        onPress={() => {
-                          onSelectCategory(cat);
-                          setDropdownOpen(false);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            styles.chipLabel,
-                            isSelected && styles.chipLabelActive,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 };
@@ -216,172 +227,149 @@ export const Header: React.FC<HeaderProps> = ({
 const styles = StyleSheet.create({
   headerAnchor: {
     position: 'absolute',
-    top: 52,
+    top: Platform.OS === 'ios' ? 52 : 46,
     left: 0,
     right: 0,
     zIndex: 100,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    pointerEvents: 'box-none',
   },
-  headerRow: {
-    flexDirection: 'row',
+
+  // Dex View: Centered category pill
+  dexCategoryRow: {
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     width: '100%',
   },
-  leftPillContainer: {
-    flexShrink: 0,
-  },
-  topRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 0,
-  },
-  profilePill: {
+  categorySelectorPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 18,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#EFEFEF',
+    gap: 8,
     ...SHADOWS.soft,
   },
-  profileEmoji: {
-    fontSize: 12,
-    marginRight: 4,
-  },
-  profilePillText: {
-    fontSize: 11,
+  categoryPillText: {
+    fontSize: 14,
     fontWeight: '800',
     color: '#111111',
-    maxWidth: 65,
+    letterSpacing: -0.2,
   },
-  modePill: {
+
+  // Collection View: [ Catches | Profile ] centered, Settings on right
+  collectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    position: 'relative',
+  },
+  segmentedNavPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 7,
-    paddingHorizontal: 11,
     borderRadius: 999,
+    padding: 3,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#EFEFEF',
     ...SHADOWS.soft,
   },
-  modePillOnline: {
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  modePillOffline: {
-    borderColor: 'rgba(245, 158, 11, 0.5)',
-    backgroundColor: '#FFFBEB',
-  },
-  modeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    marginRight: 6,
-  },
-  modePillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#111111',
-  },
-  topPill: {
+  navSegment: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 10,
-    paddingHorizontal: 22,
+    justifyContent: 'center',
+    paddingVertical: 7,
     borderRadius: 999,
-    ...SHADOWS.soft,
+    gap: 6,
+    minHeight: 34,
   },
-  topPillStatic: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 999,
-    ...SHADOWS.soft,
+  navSegmentActive: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 14,
   },
-  gridIconBox: {
-    width: 14,
-    height: 14,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignContent: 'space-between',
-    marginRight: 8,
+  navSegmentInactive: {
+    paddingHorizontal: 11,
   },
-  gridSquare: {
-    width: 6,
-    height: 6,
-    backgroundColor: '#111111',
-    borderRadius: 1.5,
-  },
-  layersIcon: {
-    fontSize: 16,
-    color: '#111111',
-    marginRight: 8,
-    fontWeight: '900',
-  },
-  pillText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111111',
-  },
-  pillTextStatic: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111111',
-  },
-  chevron: {
+  navSegmentLabelActive: {
     fontSize: 13,
+    fontWeight: '800',
     color: '#111111',
-    marginLeft: 7,
-    fontWeight: '700',
+    letterSpacing: -0.2,
   },
-  modalBackdrop: {
+
+  // Right Actions (Settings button absolute right)
+  settingsBtnWrapper: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  settingsCircleBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    ...SHADOWS.soft,
+  },
+
+  // Modal Dropdown Card
+  modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.25)',
     justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingTop: 106,
+    paddingTop: Platform.OS === 'ios' ? 110 : 100,
   },
-  dropdownCard: {
-    width: width * 0.88,
-    maxWidth: 360,
+  dropdownModalCard: {
+    width: width > 400 ? 360 : width - 40,
     backgroundColor: '#FFFFFF',
-    borderRadius: 28,
-    padding: 16,
-    ...SHADOWS.heavy,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    ...SHADOWS.soft,
+    overflow: 'hidden',
   },
-  twoColumnContainer: {
+  dropdownCardInner: {
+    padding: 16,
+  },
+  twoColumnWrapper: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 10,
   },
-  column: {
-    width: '48%',
+  categoryColumn: {
+    flex: 1,
+    gap: 6,
   },
   categoryChip: {
-    backgroundColor: '#F4F4F4',
-    paddingVertical: 13,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 18,
+    borderRadius: 14,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
   },
   categoryChipActive: {
     backgroundColor: '#111111',
+    borderColor: '#111111',
   },
   chipLabel: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
-    color: '#111111',
+    color: COLORS.textPrimary,
   },
   chipLabelActive: {
     color: '#FFFFFF',
+    fontWeight: '800',
   },
 });

@@ -8,7 +8,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { CatchRecord, Specimen } from '../types';
+import { CatchRecord } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
