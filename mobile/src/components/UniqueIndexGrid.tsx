@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Specimen, TaxonomicCategory } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { FONTS } from '../theme/fonts';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 3;
@@ -134,6 +135,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textMuted,
     letterSpacing: 0.5,
+    fontFamily: FONTS.tech,
   },
   commonName: {
     fontSize: 10,
@@ -141,6 +143,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textAlign: 'center',
     marginTop: 1,
+    fontFamily: FONTS.brandBold,
   },
   emptyContainer: {
     paddingTop: 180,

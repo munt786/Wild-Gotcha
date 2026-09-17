@@ -676,4 +676,38 @@ export class SupabaseService {
       // Quietly ignore
     }
   }
+
+  /**
+   * Checks whether a username / handle is already taken across local storage and Supabase profiles
+   */
+  static async isHandleTaken(handle: string, currentUserId?: string): Promise<boolean> {
+    const clean = handle.trim().toLowerCase().replace(/^@/, '');
+    if (!clean) return false;
+
+    // 1. Check local account registry
+    const localTaken = await StorageService.isHandleTaken(clean, currentUserId);
+    if (localTaken) return true;
+
+    // 2. Check Supabase profiles table if configured
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
+    try {
+      const idFilter = currentUserId ? `&id=neq.${encodeURIComponent(currentUserId)}` : '';
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?display_name=ilike.${encodeURIComponent(clean)}${idFilter}&select=id`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) && data.length > 0;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
 }

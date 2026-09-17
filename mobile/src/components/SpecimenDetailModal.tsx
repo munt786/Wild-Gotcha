@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Specimen } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { FONTS } from '../theme/fonts';
 import { EXP_TABLE } from '../services/progressionService';
 
 const { width } = Dimensions.get('window');
@@ -365,6 +366,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFF',
     letterSpacing: 0.8,
+    fontFamily: FONTS.brandBold,
   },
   headerSection: {
     marginTop: 12,
@@ -389,6 +391,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandBold,
   },
   breedBadge: {
     backgroundColor: '#EEF2FF',
@@ -402,6 +405,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#4338CA',
+    fontFamily: FONTS.brandBold,
   },
   expPillBadge: {
     backgroundColor: '#FFFFFF',
@@ -413,12 +417,14 @@ const styles = StyleSheet.create({
   expPillText: {
     fontSize: 10.5,
     fontWeight: '900',
+    fontFamily: FONTS.brandBold,
   },
   commonName: {
     fontSize: 22,
     fontWeight: '900',
     color: COLORS.textPrimary,
     letterSpacing: -0.4,
+    fontFamily: FONTS.brandBold,
   },
   scientificName: {
     fontSize: 13,
@@ -434,7 +440,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textMuted,
     marginTop: 2,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    fontFamily: FONTS.tech,
   },
   loreBox: {
     backgroundColor: '#F9FAFB',
@@ -450,6 +457,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     letterSpacing: 0.6,
     marginBottom: 4,
+    fontFamily: FONTS.brandBold,
   },
   loreText: {
     fontSize: 12,
@@ -471,17 +479,19 @@ const styles = StyleSheet.create({
     borderColor: '#F3F4F6',
   },
   cellLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    marginBottom: 3,
-    letterSpacing: 0.4,
-  },
-  cellValue: {
     fontSize: 12,
     fontWeight: '800',
+    color: COLORS.textMuted,
+    marginBottom: 4,
+    letterSpacing: 0.5,
+    fontFamily: FONTS.brandBold,
+  },
+  cellValue: {
+    fontSize: 10.5,
+    fontWeight: '700',
     color: COLORS.textPrimary,
     lineHeight: 15,
+    fontFamily: FONTS.brandBold,
   },
   pipRow: {
     flexDirection: 'row',
@@ -499,6 +509,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textPrimary,
     marginLeft: 5,
+    fontFamily: FONTS.numbers,
   },
   buttonStack: {
     marginTop: 16,
@@ -517,6 +528,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.6,
+    fontFamily: FONTS.brandBold,
   },
   releaseButton: {
     backgroundColor: 'transparent',
@@ -529,5 +541,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#EF4444',
+    fontFamily: FONTS.brandBold,
   },
 });

@@ -183,6 +183,8 @@ export class StorageService {
         email: string;
         passwordHash: string;
         displayName: string;
+        handle?: string;
+        avatarUrl?: string;
         createdAt: string;
       }> = accountsRaw ? JSON.parse(accountsRaw) : [];
 
@@ -191,11 +193,21 @@ export class StorageService {
       }
 
       const newId = 'usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+      // Generate guaranteed unique initial handle
+      const baseHandle = `@${(displayName || cleanEmail.split('@')[0]).toLowerCase().replace(/[^a-z0-9_]/g, '_')}`;
+      let candidateHandle = baseHandle;
+      let counter = 1;
+      while (accounts.some((a) => (a.handle || '').toLowerCase() === candidateHandle.toLowerCase())) {
+        counter++;
+        candidateHandle = `${baseHandle}_${counter}`;
+      }
+
       const newAccount = {
         id: newId,
         email: cleanEmail,
         passwordHash: pass,
         displayName: displayName || cleanEmail.split('@')[0],
+        handle: candidateHandle,
         createdAt: new Date().toISOString(),
       };
 
@@ -206,6 +218,7 @@ export class StorageService {
         id: newAccount.id,
         email: newAccount.email,
         displayName: newAccount.displayName,
+        handle: candidateHandle,
         isGuest: false,
         level: 1,
         rankTitle: 'Rookie Naturalist',
@@ -283,6 +296,27 @@ export class StorageService {
       }
     } catch (e) {
       console.warn('Failed to update account metadata:', e);
+    }
+  }
+
+  /**
+   * Checks if a handle is already taken by another account in the local registry
+   */
+  static async isHandleTaken(handle: string, currentUserId?: string): Promise<boolean> {
+    try {
+      const clean = handle.trim().toLowerCase().replace(/^@/, '');
+      if (!clean) return false;
+      const accountsRaw = await AsyncStorage.getItem(KEYS.ACCOUNTS_REGISTRY);
+      if (!accountsRaw) return false;
+      const accounts: Array<any> = JSON.parse(accountsRaw);
+      return accounts.some((a) => {
+        if (currentUserId && a.id === currentUserId) return false;
+        const aHandle = (a.handle || '').trim().toLowerCase().replace(/^@/, '');
+        const aName = (a.displayName || '').trim().toLowerCase().replace(/\s+/g, '_');
+        return aHandle === clean || aName === clean;
+      });
+    } catch {
+      return false;
     }
   }
 

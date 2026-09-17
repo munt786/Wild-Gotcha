@@ -12,6 +12,7 @@ import {
 import { LayoutGrid, User, Settings, ChevronDown } from 'lucide-react-native';
 import { ActiveTab, TaxonomicCategory } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { FONTS } from '../theme/fonts';
 
 const { width } = Dimensions.get('window');
 
@@ -258,6 +259,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111111',
     letterSpacing: -0.2,
+    fontFamily: FONTS.brandBold,
   },
 
   // Collection View: [ Catches | Profile ] centered, Settings on right
@@ -299,6 +301,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111111',
     letterSpacing: -0.2,
+    fontFamily: FONTS.brandBold,
   },
 
   // Right Actions (Settings button absolute right)
@@ -367,9 +370,11 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '700',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandRegular,
   },
   chipLabelActive: {
     color: '#FFFFFF',
     fontWeight: '800',
+    fontFamily: FONTS.brandBold,
   },
 });

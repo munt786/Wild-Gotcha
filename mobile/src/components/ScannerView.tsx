@@ -12,6 +12,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { SwitchCamera, Zap, X, Image as ImageIcon } from 'lucide-react-native';
+import { FONTS } from '../theme/fonts';
 
 const { width } = Dimensions.get('window');
 const VIEWFINDER_SIZE = Math.min(width * 0.70, 280);
@@ -592,7 +593,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#F9FAFB',
-    letterSpacing: 0.2,
+    letterSpacing: 0.5,
+    fontFamily: FONTS.tech,
   },
   topRightActions: {
     flexDirection: 'row',
@@ -665,10 +667,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#9CA3AF',
+    fontFamily: FONTS.tech,
   },
   zoomPillTextActive: {
     color: '#111111',
     fontWeight: '900',
+    fontFamily: FONTS.tech,
   },
 
   // 4. Analyzing Overlay
@@ -692,6 +696,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111111',
     marginTop: 16,
+    fontFamily: FONTS.brandBold,
   },
   analyzingSubtitle: {
     fontSize: 13,

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { CatchRecord } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { FONTS } from '../theme/fonts';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 3;
@@ -99,6 +100,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textMuted,
     letterSpacing: 0.2,
+    fontFamily: FONTS.brandBold,
   },
   columnWrapper: {
     justifyContent: 'space-between',
@@ -134,17 +136,21 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     color: COLORS.textMuted,
+    fontFamily: FONTS.tech,
   },
   catchName: {
     fontSize: 10,
     fontWeight: '700',
     color: COLORS.textPrimary,
     marginTop: 1,
+    fontFamily: FONTS.brandBold,
   },
   catchDate: {
     fontSize: 9,
+    fontWeight: '600',
     color: COLORS.textLight,
     marginTop: 2,
+    fontFamily: FONTS.numbers,
   },
   emptyContainer: {
     paddingTop: 180,

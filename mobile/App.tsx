@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { ActiveTab, TaxonomicCategory, Specimen, CatchRecord, RarityLevel, UserProfile, CloudSyncStatus } from './src/types';
+import { useFonts } from 'expo-font';
 import { COLORS, SHADOWS } from './src/theme/colors';
 import { Header } from './src/components/Header';
 import { BottomNavBar } from './src/components/BottomNavBar';
@@ -73,6 +74,11 @@ function deriveSpecimensFromCatches(
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    'Apollo': require('./assets/fonts/APOLLO.otf'),
+    'Apollo-Italic': require('./assets/fonts/APOLLOItalic.otf'),
+  });
+
   // Navigation & Category State
   const [activeTab, setActiveTab] = useState<ActiveTab>('INDEX');
   const [selectedCategory, setSelectedCategory] = useState<TaxonomicCategory>('All');
@@ -771,8 +777,8 @@ export default function App() {
     }
   };
 
-  // 1. Splash / Session Restoration Screen
-  if (!authChecked) {
+  // 1. Splash / Session Restoration Screen & Font Preloading
+  if (!authChecked || !fontsLoaded) {
     return (
       <SafeAreaView style={[styles.appShell, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color="#10B981" />

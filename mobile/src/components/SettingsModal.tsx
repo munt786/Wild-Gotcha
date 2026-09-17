@@ -19,6 +19,7 @@ import {
 } from 'lucide-react-native';
 import { UserProfile } from '../types';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { FONTS } from '../theme/fonts';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -332,11 +333,13 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: COLORS.textPrimary,
     letterSpacing: -0.4,
+    fontFamily: FONTS.brandBold,
   },
   doneBtnText: {
     fontSize: 15,
     fontWeight: '800',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandBold,
   },
   scrollContainer: {
     flex: 1,
@@ -353,6 +356,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 8,
     marginLeft: 4,
+    fontFamily: FONTS.brandBold,
   },
   cardGroup: {
     backgroundColor: '#FFFFFF',
@@ -375,22 +379,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandBold,
   },
   rowLabelDanger: {
     fontSize: 15,
     fontWeight: '700',
     color: '#EF4444',
+    fontFamily: FONTS.brandBold,
   },
   rowSubLabel: {
     fontSize: 12,
     fontWeight: '500',
     color: COLORS.textMuted,
     marginTop: 2,
+    fontFamily: FONTS.brandRegular,
   },
   rowValueMuted: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.textMuted,
+    fontFamily: FONTS.brandBold,
   },
   iconLabelRow: {
     flexDirection: 'row',
@@ -406,6 +414,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: COLORS.accentGreen,
+    fontFamily: FONTS.brandBold,
   },
   checkCircle: {
     width: 18,
@@ -456,6 +465,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
     letterSpacing: -0.3,
+    fontFamily: FONTS.brandBold,
   },
   confirmMessage: {
     fontSize: 14,
@@ -464,6 +474,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
+    fontFamily: FONTS.brandRegular,
   },
   confirmActionsRow: {
     flexDirection: 'row',
@@ -482,6 +493,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#374151',
+    fontFamily: FONTS.brandBold,
   },
   confirmActionBtn: {
     flex: 1,
@@ -500,5 +512,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: FONTS.brandBold,
   },
 });

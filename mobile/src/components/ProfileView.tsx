@@ -23,7 +23,9 @@ import {
 } from 'lucide-react-native';
 import { CatchRecord, Specimen, UserProfile, ActiveTab } from '../types';
 import { ProgressionService, LevelInfo } from '../services/progressionService';
+import { SupabaseService } from '../services/supabaseService';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { FONTS } from '../theme/fonts';
 
 interface ProfileViewProps {
   user: UserProfile | null;
@@ -64,6 +66,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [handleInput, setHandleInput] = useState(
     user?.handle || `@${(user?.displayName || 'collector').toLowerCase().replace(/\s+/g, '_')}`
   );
+  const [handleError, setHandleError] = useState<string | null>(null);
+  const [isCheckingHandle, setIsCheckingHandle] = useState(false);
   const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
 
   React.useEffect(() => {
@@ -125,12 +129,57 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const clampedProgress = Math.min(100, Math.max(0, progression.progressPercent));
   const strokeDashoffset = GAUGE_CIRCUMFERENCE * (1 - clampedProgress / 100);
 
-  const handleSaveHandle = () => {
+  const handleSaveHandle = async () => {
     let clean = handleInput.trim();
     if (!clean.startsWith('@')) clean = `@${clean}`;
-    setIsEditingHandle(false);
-    if (onUpdateHandle) {
-      onUpdateHandle(clean);
+
+    const rawTag = clean.substring(1).toLowerCase();
+
+    // 1. Minimum & maximum length
+    if (rawTag.length < 3) {
+      setHandleError('Username must be at least 3 characters.');
+      return;
+    }
+    if (rawTag.length > 20) {
+      setHandleError('Username cannot exceed 20 characters.');
+      return;
+    }
+
+    // 2. Character set validation
+    if (!/^[a-z0-9_]+$/.test(rawTag)) {
+      setHandleError('Letters, numbers, and underscores only.');
+      return;
+    }
+
+    // If unchanged, exit edit mode smoothly
+    if (user?.handle && user.handle.toLowerCase() === `@${rawTag}`) {
+      setHandleError(null);
+      setIsEditingHandle(false);
+      return;
+    }
+
+    setIsCheckingHandle(true);
+    setHandleError(null);
+
+    try {
+      const isTaken = await SupabaseService.isHandleTaken(rawTag, user?.id);
+      if (isTaken) {
+        setHandleError(`@${rawTag} is already taken. Please choose another.`);
+        setIsCheckingHandle(false);
+        return;
+      }
+
+      setIsCheckingHandle(false);
+      setIsEditingHandle(false);
+      if (onUpdateHandle) {
+        onUpdateHandle(`@${rawTag}`);
+      }
+    } catch {
+      setIsCheckingHandle(false);
+      setIsEditingHandle(false);
+      if (onUpdateHandle) {
+        onUpdateHandle(`@${rawTag}`);
+      }
     }
   };
 
@@ -207,23 +256,53 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </View>
 
         {isEditingHandle ? (
-          <View style={styles.handleEditRow}>
-            <TextInput
-              style={styles.handleInput}
-              value={handleInput}
-              onChangeText={setHandleInput}
-              autoFocus
-              onSubmitEditing={handleSaveHandle}
-              returnKeyType="done"
-            />
-            <TouchableOpacity style={styles.saveHandleBtn} onPress={handleSaveHandle}>
-              <Check size={14} color="#FFFFFF" />
-            </TouchableOpacity>
+          <View style={{ alignItems: 'center' }}>
+            <View style={styles.handleEditRow}>
+              <TextInput
+                style={styles.handleInput}
+                value={handleInput}
+                onChangeText={(t) => {
+                  setHandleInput(t);
+                  if (handleError) setHandleError(null);
+                }}
+                autoFocus
+                onSubmitEditing={handleSaveHandle}
+                returnKeyType="done"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isCheckingHandle}
+              />
+              <TouchableOpacity
+                style={[styles.saveHandleBtn, isCheckingHandle && { opacity: 0.6 }]}
+                onPress={handleSaveHandle}
+                disabled={isCheckingHandle}
+                activeOpacity={0.8}
+              >
+                <Check size={14} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cancelHandleBtn}
+                onPress={() => {
+                  setHandleInput(user?.handle || `@${(user?.displayName || 'collector').toLowerCase().replace(/\s+/g, '_')}`);
+                  setHandleError(null);
+                  setIsEditingHandle(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <X size={14} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            {handleError && (
+              <Text style={styles.handleErrorText}>{handleError}</Text>
+            )}
           </View>
         ) : (
           <TouchableOpacity
             style={styles.handleRow}
-            onPress={() => setIsEditingHandle(true)}
+            onPress={() => {
+              setHandleError(null);
+              setIsEditingHandle(true);
+            }}
             activeOpacity={0.7}
           >
             <Text style={styles.handleText}>{user?.handle || handleInput}</Text>
@@ -567,6 +646,7 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandBold,
   },
   cameraIconBadge: {
     position: 'absolute',
@@ -597,6 +677,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textPrimary,
     letterSpacing: -0.3,
+    fontFamily: FONTS.brandBold,
   },
   handleEditRow: {
     flexDirection: 'row',
@@ -622,6 +703,21 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cancelHandleBtn: {
+    backgroundColor: '#F3F4F6',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  handleErrorText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginTop: 6,
+    textAlign: 'center',
   },
 
   // 2. Level Card & Circular Gauge
@@ -661,12 +757,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textMuted,
     letterSpacing: 0.5,
+    fontFamily: FONTS.brandBold,
   },
   levelRingNum: {
     fontSize: 22,
     fontWeight: '900',
     color: '#111111',
     lineHeight: 24,
+    fontFamily: FONTS.brandBold,
   },
   levelInfoCol: {
     flex: 1,
@@ -676,6 +774,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#111111',
     letterSpacing: -0.2,
+    fontFamily: FONTS.brandBold,
   },
   rankSubtitle: {
     fontSize: 12.5,
@@ -683,6 +782,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: 2,
     marginBottom: 8,
+    fontFamily: FONTS.brandBold,
   },
   progressTrack: {
     height: 7,
@@ -700,6 +800,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: COLORS.textMuted,
+    fontFamily: FONTS.brandRegular,
   },
 
   // 3. Stats Summary Grid (Species, Catches, Level)
@@ -725,12 +826,14 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#111111',
     letterSpacing: -0.3,
+    fontFamily: FONTS.brandBold,
   },
   statSummaryLabel: {
     fontSize: 11.5,
     fontWeight: '700',
     color: COLORS.textMuted,
     marginTop: 3,
+    fontFamily: FONTS.brandBold,
   },
 
   // Section Headers
@@ -744,6 +847,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#9CA3AF',
     letterSpacing: 0.8,
+    fontFamily: FONTS.brandBold,
   },
 
   // Breakdown Card (By Rarity & By Type)
@@ -780,14 +884,16 @@ const styles = StyleSheet.create({
   },
   breakdownName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandBold,
   },
-  // Normal weight numbers (not bold)
+  // Apollo numbers with clean styling
   breakdownCount: {
     fontSize: 14,
-    fontWeight: '400',
+    fontWeight: '700',
     color: '#374151',
+    fontFamily: FONTS.numbers,
   },
 
   // Recent Catches Card
@@ -832,17 +938,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandBold,
   },
   recentCatchSub: {
     fontSize: 12,
     fontWeight: '600',
     color: COLORS.textMuted,
     marginTop: 2,
+    fontFamily: FONTS.brandRegular,
   },
   recentCatchDate: {
     fontSize: 11.5,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textMuted,
+    fontFamily: FONTS.numbers,
   },
   viewAllBtn: {
     flexDirection: 'row',
@@ -855,6 +964,7 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '800',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandBold,
   },
 
   // Avatar Preview & Remove Modal
@@ -885,6 +995,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: COLORS.textPrimary,
+    fontFamily: FONTS.brandBold,
   },
   avatarModalCloseBtn: {
     width: 32,
@@ -927,6 +1038,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#111111',
+    fontFamily: FONTS.brandBold,
   },
   avatarModalRemoveBtn: {
     flexDirection: 'row',
@@ -943,5 +1055,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#EF4444',
+    fontFamily: FONTS.brandBold,
   },
 });
