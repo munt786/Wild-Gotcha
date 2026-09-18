@@ -156,9 +156,9 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: '600',
     color: '#666666',
     textAlign: 'center',
     lineHeight: 24,
+    fontFamily: FONTS.brandRegular,
   },
 });

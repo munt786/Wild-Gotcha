@@ -489,10 +489,10 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 11,
-    fontWeight: '800',
     color: '#4B5563',
     letterSpacing: 0.6,
     marginBottom: 6,
+    fontFamily: FONTS.brandBold,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#111111',
-    fontWeight: '600',
+    fontFamily: FONTS.brandRegular,
     ...Platform.select({
       web: {
         outlineStyle: 'none',
@@ -564,9 +564,9 @@ const styles = StyleSheet.create({
   dividerText: {
     marginHorizontal: 12,
     fontSize: 10.5,
-    fontWeight: '800',
     color: '#9CA3AF',
     letterSpacing: 0.8,
+    fontFamily: FONTS.brandBold,
   },
   googleButton: {
     flexDirection: 'row',
@@ -584,8 +584,8 @@ const styles = StyleSheet.create({
   },
   googleButtonText: {
     fontSize: 13.5,
-    fontWeight: '700',
     color: '#1F2937',
+    fontFamily: FONTS.brandBold,
   },
   guestCard: {
     width: '100%',
@@ -602,15 +602,16 @@ const styles = StyleSheet.create({
   },
   guestBadge: {
     fontSize: 11,
-    fontWeight: '800',
     color: '#059669',
     letterSpacing: 0.5,
+    fontFamily: FONTS.brandBold,
   },
   guestDescription: {
     fontSize: 12,
     color: '#6B7280',
     lineHeight: 17,
     marginBottom: 12,
+    fontFamily: FONTS.brandRegular,
   },
   guestButton: {
     backgroundColor: '#F3F4F6',
@@ -622,8 +623,8 @@ const styles = StyleSheet.create({
   },
   guestButtonText: {
     fontSize: 13,
-    fontWeight: '700',
     color: '#374151',
+    fontFamily: FONTS.brandBold,
   },
   footerNote: {
     paddingHorizontal: 14,
@@ -633,6 +634,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 16,
+    fontFamily: FONTS.brandRegular,
   },
   modalOverlay: {
     flex: 1,

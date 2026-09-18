@@ -338,7 +338,8 @@ export default function App() {
   // Trigger manual cloud sync
   const handleTriggerSync = async () => {
     if (!user || user.isGuest) {
-      setAuthModalVisible(true);
+      // Return guest to the clean modern AuthScreen to sign in or create an account
+      handleUserChange(null);
       return;
     }
     setSyncStatus('syncing');
